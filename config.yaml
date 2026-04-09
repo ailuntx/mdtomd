@@ -1,0 +1,235 @@
+# mdtomd config
+#
+# 优先级:
+# CLI 参数 > 环境变量 > providers.<当前provider> > llm > 代码默认值
+#
+# 依赖:
+# - openai-codex 需要安装 openai SDK: pip install -r requirements.txt
+
+llm:
+  provider: deepseek
+  model: ""
+  base_url: ""
+  api_key: ""
+  api_key_env: ""
+  codex_home: ""
+  auth_file: ""
+  api_mode: auto
+  timeout_sec: 120
+  max_tokens:
+  temperature: 0
+  max_retries: 2
+  retry_base_delay: 1.5
+
+providers:
+  openai:
+    model: gpt-4.1-mini
+    base_url: https://api.openai.com/v1
+    api_key: ""
+    api_mode: auto
+    max_tokens: 32000
+
+  openai-codex:
+    model: gpt-5.4-mini
+    base_url: https://chatgpt.com/backend-api/codex
+    api_key: ""
+    codex_home: ""
+    auth_file: ""
+    api_mode: responses
+    max_tokens: 64000
+
+  openrouter:
+    model: google/gemini-2.5-flash-lite
+    base_url: https://openrouter.ai/api/v1
+    api_key: ""
+    api_mode: chat_completions
+    max_tokens: 65536
+
+  anthropic:
+    model: claude-3-5-sonnet-latest
+    base_url: https://api.anthropic.com
+    api_key: ""
+    max_tokens: 64000
+
+  gemini:
+    model: gemini-2.5-flash
+    base_url: https://generativelanguage.googleapis.com/v1beta
+    api_key: ""
+    max_tokens: 65536
+
+  gemini-openai:
+    model: gemini-2.5-flash
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai
+    api_key: ""
+    api_mode: chat_completions
+    max_tokens: 65536
+
+  nous:
+    model: google/gemini-2.5-flash-preview
+    base_url: https://inference-api.nousresearch.com/v1
+    api_key: ""
+    api_mode: chat_completions
+    max_tokens: 65536
+
+  zai:
+    model: glm-5
+    base_url: https://api.z.ai/api/paas/v4
+    api_key: ""
+    api_mode: chat_completions
+    max_tokens: 32000
+
+  deepseek:
+    model: deepseek-chat
+    base_url: https://api.deepseek.com/v1
+    api_key: "REMOVED_DEEPSEEK_KEY"
+    api_mode: chat_completions
+    max_tokens: 8192
+
+  novita:
+    model: deepseek/deepseek-v3-turbo
+    base_url: https://api.novita.ai/openai
+    api_key: ""
+    api_mode: chat_completions
+    max_tokens: 16000
+
+  minimax:
+    model: MiniMax-M1
+    base_url: https://api.minimaxi.com/v1
+    api_key: ""
+    api_mode: chat_completions
+    max_tokens: 64000
+
+  minimax-anthropic:
+    model: MiniMax-M1
+    base_url: https://api.minimax.io/anthropic
+    api_key: ""
+    max_tokens: 64000
+
+  minimax-cn:
+    model: MiniMax-M1
+    base_url: https://api.minimaxi.com/anthropic
+    api_key: ""
+    max_tokens: 64000
+
+  kimi:
+    model: moonshot-v1-8k
+    base_url: https://api.moonshot.cn/v1
+    api_key: ""
+    api_mode: chat_completions
+    max_tokens: 8000
+
+  kimi-anthropic:
+    model: kimi-k2-turbo-preview
+    base_url: https://api.kimi.com/coding
+    api_key: ""
+    max_tokens: 32000
+
+  alibaba:
+    model: qwen-plus
+    base_url: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+    api_key: ""
+    api_mode: chat_completions
+    max_tokens: 16000
+
+  huggingface:
+    model: openai/gpt-oss-120b
+    base_url: https://router.huggingface.co/v1
+    api_key: ""
+    api_mode: chat_completions
+    max_tokens: 16000
+
+  ai-gateway:
+    model: openai/gpt-4.1-mini
+    base_url: https://ai-gateway.vercel.sh/v1
+    api_key: ""
+    api_mode: chat_completions
+    max_tokens: 32000
+
+  opencode-zen:
+    model: google/gemini-2.5-flash
+    base_url: https://opencode.ai/zen/v1
+    api_key: ""
+    api_mode: chat_completions
+    max_tokens: 65536
+
+  opencode-go:
+    model: glm-5
+    base_url: https://opencode.ai/zen/go/v1
+    api_key: ""
+    api_mode: chat_completions
+    max_tokens: 32000
+
+  kilocode:
+    model: google/gemini-2.5-flash-preview
+    base_url: https://api.kilo.ai/api/gateway
+    api_key: ""
+    api_mode: chat_completions
+    max_tokens: 65536
+
+  copilot:
+    model: gpt-4.1
+    base_url: https://api.githubcopilot.com
+    api_key: ""
+    api_mode: chat_completions
+    max_tokens: 32000
+
+  openai-compatible:
+    model: qwen2.5-14b-instruct
+    base_url: http://localhost:8000/v1
+    api_key: ""
+    api_mode: chat_completions
+    max_tokens: 8192
+
+display:
+  featured_models:
+    openai-gpt-4.1-mini:
+      provider: openai
+      model: gpt-4.1-mini
+      label: OpenAI GPT-4.1 Mini
+    openai-codex-gpt-5.4-mini:
+      provider: openai-codex
+      model: gpt-5.4-mini
+      label: OpenAI GPT-5.4 Mini
+    anthropic-claude-3-5-sonnet:
+      provider: anthropic
+      model: claude-3-5-sonnet-latest
+      label: Claude 3.5 Sonnet
+    gemini-2.5-flash:
+      provider: gemini
+      model: gemini-2.5-flash
+      label: Gemini 2.5 Flash
+    openrouter-gemini-2.5-flash-lite:
+      provider: openrouter
+      model: google/gemini-2.5-flash-lite
+      label: OpenRouter Gemini 2.5 Flash Lite
+    deepseek-chat:
+      provider: deepseek
+      model: deepseek-chat
+      label: DeepSeek Chat
+    deepseek-reasoner:
+      provider: deepseek
+      model: deepseek-reasoner
+      label: DeepSeek Reasoner
+    kimi-k2-turbo-preview:
+      provider: kimi
+      model: kimi-k2-turbo-preview
+      label: Kimi K2 Turbo Preview
+    glm-5:
+      provider: zai
+      model: glm-5
+      label: GLM-5
+    qwen-3.6-plus:
+      provider: alibaba
+      model: qwen3.6-plus
+      label: Qwen 3.6 Plus
+
+translator:
+  chunk_size: 8000
+  chunk_sleep_seconds: 0.5
+
+defaults:
+  language: Chinese
+  output_dir: ""
+  suffix: zh
+  flat: false
+  force: false
