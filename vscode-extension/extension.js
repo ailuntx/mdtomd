@@ -559,7 +559,7 @@ function activate(context) {
 
   async function runCliJson({ command, targetPath, profile, configPath, cwd, targetLanguage, targetSuffix, outputChannel }) {
     const settings = vscode.workspace.getConfiguration('mdtomd');
-    const args = buildCliArgs(command, targetPath, profile, configPath, targetLanguage, targetSuffix);
+    const args = buildCliArgs(command, targetPath, profile, configPath, targetLanguage, targetSuffix, settings.get('timeoutSec'));
     const candidates = getCliCandidates(settings, cwd);
     let lastMissing = null;
 

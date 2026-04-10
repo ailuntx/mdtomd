@@ -30,6 +30,12 @@ python3 -m pip install -e .
 ./scripts/install_cli.sh
 ```
 
+Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install_cli.ps1
+```
+
 **配置**
 
 直接改 `config.yaml` 即可。

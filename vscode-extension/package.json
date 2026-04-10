@@ -169,6 +169,12 @@
             "type": "boolean",
             "default": false,
             "description": "命令成功后也自动打开 mdtomd 输出面板。"
+          },
+          "mdtomd.timeoutSec": {
+            "type": "number",
+            "default": 120,
+            "minimum": 1,
+            "description": "LLM 请求超时秒数。会作为 --timeout-sec 传给 CLI，优先级高于 config.yaml 的 llm.timeout_sec。"
           }
         }
       },

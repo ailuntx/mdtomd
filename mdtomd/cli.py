@@ -573,6 +573,7 @@ def _handle_setup() -> int:
     print("   mdtomd models")
     print("3. 安装 CLI 并尽量自动放进 PATH:")
     print("   ./scripts/install_cli.sh")
+    print("   powershell -ExecutionPolicy Bypass -File .\\scripts\\install_cli.ps1")
     print("4. 编辑 config.yaml，或设置环境变量，例如:")
     print('   export OPENROUTER_API_KEY="your-key"')
     print('   export OPENAI_API_KEY="your-key"')

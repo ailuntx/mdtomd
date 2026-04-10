@@ -292,7 +292,7 @@ function buildProviderDetail(override) {
   return parts.join(' ');
 }
 
-function buildCliArgs(command, inputPath, profile, configPath, targetLanguage, targetSuffix) {
+function buildCliArgs(command, inputPath, profile, configPath, targetLanguage, targetSuffix, timeoutSec) {
   const args = [command, '--json', '-i', inputPath];
 
   if (configPath) {
@@ -301,6 +301,7 @@ function buildCliArgs(command, inputPath, profile, configPath, targetLanguage, t
 
   pushArg(args, '--language', targetLanguage);
   pushArg(args, '--suffix', targetSuffix);
+  pushArg(args, '--timeout-sec', timeoutSec);
 
   if (profile && !profile.useDefaults) {
     pushArg(args, '--provider', profile.provider);
@@ -432,6 +433,18 @@ function getLocalCliCandidates(workspaceDir) {
   for (const candidate of possible) {
     if (fs.existsSync(candidate)) {
       candidates.push(candidate);
+    }
+  }
+
+  if (process.platform === 'win32') {
+    const roamingPython = path.join(os.homedir(), 'AppData', 'Roaming', 'Python');
+    if (fs.existsSync(roamingPython)) {
+      for (const version of safeReadDir(roamingPython)) {
+        const candidate = path.join(roamingPython, version, 'Scripts', 'mdtomd.exe');
+        if (fs.existsSync(candidate)) {
+          candidates.push(candidate);
+        }
+      }
     }
   }
 

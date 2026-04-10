@@ -105,6 +105,34 @@ test('buildDirectSettingsProfiles parses direct provider settings', () => {
   }
 });
 
+test('buildDirectSettingsProfiles keeps codex profile when auth file is configured', () => {
+  const values = {
+    'openaiCodex.model': 'gpt-5.4-mini',
+    'openaiCodex.baseUrl': 'https://chatgpt.com/backend-api/codex',
+    'openaiCodex.authFile': '/tmp/auth.json',
+    'openaiCodex.codexHome': '/tmp/.codex',
+    'openaiCodex.apiMode': 'responses',
+    'openaiCodex.maxTokens': 64000,
+  };
+  const settings = {
+    get(name) {
+      return values[name];
+    },
+    inspect(name) {
+      if (name === 'openaiCodex.authFile' || name === 'openaiCodex.codexHome') {
+        return { globalValue: values[name] };
+      }
+      return {};
+    },
+  };
+
+  const profiles = buildDirectSettingsProfiles(settings);
+  assert.equal(profiles.length, 1);
+  assert.equal(profiles[0].provider, 'openai-codex');
+  assert.equal(profiles[0].authFile, '/tmp/auth.json');
+  assert.equal(profiles[0].codexHome, '/tmp/.codex');
+});
+
 test('buildConfigProfiles skips provider templates without usable key', () => {
   const profiles = buildConfigProfiles(
     {
@@ -166,7 +194,8 @@ test('buildCliArgs keeps config and explicit profile flags', () => {
     },
     '/tmp/config.yaml',
     'Chinese',
-    'zh'
+    'zh',
+    180
   );
 
   assert.deepEqual(args, [
@@ -180,6 +209,8 @@ test('buildCliArgs keeps config and explicit profile flags', () => {
     'Chinese',
     '--suffix',
     'zh',
+    '--timeout-sec',
+    '180',
     '--provider',
     'openai',
     '--model',
@@ -213,7 +244,8 @@ test('buildCliArgs does not pass translate-only flags to estimate', () => {
     },
     null,
     'Chinese',
-    'zh'
+    'zh',
+    90
   );
 
   assert.deepEqual(args, [
@@ -225,6 +257,8 @@ test('buildCliArgs does not pass translate-only flags to estimate', () => {
     'Chinese',
     '--suffix',
     'zh',
+    '--timeout-sec',
+    '90',
     '--provider',
     'deepseek',
     '--model',
