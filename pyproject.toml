@@ -8,6 +8,17 @@ version = "0.1.0"
 description = "Markdown/MDX translation CLI"
 readme = "README.md"
 requires-python = ">=3.9"
+keywords = ["markdown", "mdx", "translation", "llm"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Text Processing :: Markup",
+]
 dependencies = [
     "openai>=1.75,<2",
     "tiktoken>=0.8,<1",

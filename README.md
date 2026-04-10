@@ -2,7 +2,7 @@
 
 一个给自己用的 Markdown/MDX 翻译工具。
 
-默认会读取当前目录的 [config.yaml](/Volumes/usb_main/home/template_paper/mdtomd/config.yaml)，支持：
+默认会读取当前目录的 `config.yaml`，支持：
 
 - 单文件翻译
 - 目录批量翻译
@@ -12,14 +12,27 @@
 
 **安装**
 
+发布版安装：
+
 ```bash
-cd /Volumes/usb_main/home/template_paper/mdtomd
+python3 -m pip install mdtomd
+```
+
+本地开发安装：
+
+```bash
 python3 -m pip install -e .
+```
+
+如果想尽量自动把 `mdtomd` 放进当前机器的可执行路径：
+
+```bash
+./scripts/install_cli.sh
 ```
 
 **配置**
 
-直接改 [config.yaml](/Volumes/usb_main/home/template_paper/mdtomd/config.yaml) 即可。
+直接改 `config.yaml` 即可。
 
 常见方式：
 
@@ -103,9 +116,24 @@ mdtomd models
 python3 -m unittest discover -s tests -v
 ```
 
+**CLI 发布**
+
+构建并检查产物：
+
+```bash
+./scripts/build_cli.sh
+```
+
+上传到 PyPI：
+
+```bash
+export TWINE_PASSWORD="pypi-***"
+./scripts/publish_cli.sh
+```
+
 **VS Code 插件**
 
-插件目录在 [vscode-extension](/Volumes/usb_main/home/template_paper/mdtomd/vscode-extension)。
+插件目录在 `vscode-extension/`。
 
 本地调试：
 直接用 VS Code 打开 `vscode-extension` 目录，按 `F5` 启动 Extension Development Host。
@@ -113,7 +141,7 @@ python3 -m unittest discover -s tests -v
 打包：
 
 ```bash
-cd /Volumes/usb_main/home/template_paper/mdtomd/vscode-extension
+cd vscode-extension
 npm run package
 ```
 
