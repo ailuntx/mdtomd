@@ -18,6 +18,48 @@ const DIRECT_PROVIDER_DEFINITIONS = [
   { key: 'alibaba', provider: 'alibaba', label: 'Alibaba' },
   { key: 'openaiCompatible', provider: 'openai-compatible', label: 'OpenAI Compatible' },
 ];
+const DEFAULT_LANGUAGE_SUFFIXES = {
+  Spanish: 'es',
+  French: 'fr',
+  German: 'de',
+  Italian: 'it',
+  Portuguese: 'pt',
+  Dutch: 'nl',
+  Russian: 'ru',
+  Chinese: 'zh',
+  Japanese: 'ja',
+  Korean: 'ko',
+  Arabic: 'ar',
+  Hindi: 'hi',
+  Turkish: 'tr',
+  Polish: 'pl',
+  Swedish: 'sv',
+  Norwegian: 'no',
+  Danish: 'da',
+  Finnish: 'fi',
+  Greek: 'el',
+  Hebrew: 'he',
+  Thai: 'th',
+  Vietnamese: 'vi',
+  Indonesian: 'id',
+  Malay: 'ms',
+  Ukrainian: 'uk',
+  Czech: 'cs',
+  Hungarian: 'hu',
+  Romanian: 'ro',
+  Bulgarian: 'bg',
+  Croatian: 'hr',
+  Serbian: 'sr',
+  Slovak: 'sk',
+  Slovenian: 'sl',
+  Estonian: 'et',
+  Latvian: 'lv',
+  Lithuanian: 'lt',
+  Catalan: 'ca',
+  Basque: 'eu',
+  Welsh: 'cy',
+  Irish: 'ga',
+};
 
 function isMarkdownPath(filePath) {
   return SUPPORTED_EXTENSIONS.has(path.extname(filePath).toLowerCase());
@@ -218,7 +260,13 @@ function buildManualProfile() {
 
 function resolveTargetLanguage(rawConfig, fallbackLanguage) {
   const defaults = asObject(rawConfig.defaults);
-  return readString(defaults.language) || readString(fallbackLanguage) || 'Chinese';
+  return readString(fallbackLanguage) || readString(defaults.language) || 'Chinese';
+}
+
+function resolveTargetSuffix(rawConfig, rawSuffixMap, targetLanguage) {
+  const defaults = asObject(rawConfig.defaults);
+  const suffixMap = buildLanguageSuffixMap(rawSuffixMap);
+  return normalizeSuffix(suffixMap[targetLanguage]) || normalizeSuffix(defaults.suffix) || normalizeLanguage(targetLanguage);
 }
 
 function buildProviderDetail(override) {
@@ -244,7 +292,7 @@ function buildProviderDetail(override) {
   return parts.join(' ');
 }
 
-function buildCliArgs(command, inputPath, profile, configPath, targetLanguage) {
+function buildCliArgs(command, inputPath, profile, configPath, targetLanguage, targetSuffix) {
   const args = [command, '--json', '-i', inputPath];
 
   if (configPath) {
@@ -252,6 +300,7 @@ function buildCliArgs(command, inputPath, profile, configPath, targetLanguage) {
   }
 
   pushArg(args, '--language', targetLanguage);
+  pushArg(args, '--suffix', targetSuffix);
 
   if (profile && !profile.useDefaults) {
     pushArg(args, '--provider', profile.provider);
@@ -276,7 +325,9 @@ function buildEstimateMessage(targetPath, payload) {
   const lines = [
     `目标: ${targetPath}`,
     `目标语言: ${payload.language || '-'}`,
+    `输出后缀: ${payload.suffix || '-'}`,
     `模型: ${payload.provider || 'auto'} / ${payload.model || '-'}`,
+    `chunk_size: ${payload.chunk_size ?? '-'}`,
     `文件总数: ${summary.file_count ?? 0}`,
     `待翻译文件: ${summary.pending_file_count ?? 0}`,
     `跳过文件: ${summary.skipped_file_count ?? 0}`,
@@ -312,12 +363,21 @@ function buildEstimateMessage(targetPath, payload) {
   return lines.join('\n');
 }
 
-function buildStartTranslateMessage(targetPath, targetLanguage, profile, priceItem) {
+function buildStartTranslateMessage(targetPath, targetLanguage, targetSuffix, profile, priceItem, payload) {
+  const summary = payload?.summary || {};
   const lines = [
     `目标: ${targetPath}`,
     `目标语言: ${targetLanguage}`,
+    `输出后缀: ${targetSuffix || '-'}`,
     `已选模型: ${profile.label || `${profile.provider} / ${profile.model}`}`,
     `provider/model: ${profile.provider || 'auto'} / ${profile.model || '-'}`,
+    `文件总数: ${summary.file_count ?? 0}`,
+    `待翻译文件: ${summary.pending_file_count ?? 0}`,
+    `跳过文件: ${summary.skipped_file_count ?? 0}`,
+    `chunk_size: ${payload?.chunk_size ?? '-'}`,
+    `分块数: ${summary.chunk_count ?? 0}`,
+    `原文 tokens: ${summary.source_tokens ?? 0}`,
+    `请求输入 tokens: ${summary.request_input_tokens ?? 0}`,
   ];
 
   if (priceItem && priceItem.available) {
@@ -491,6 +551,21 @@ function isUsableProfile(profile) {
   return Boolean(inlineKey || envValue || authFile || codexHome);
 }
 
+function buildLanguageSuffixMap(rawValue) {
+  const suffixMap = { ...DEFAULT_LANGUAGE_SUFFIXES };
+  if (!isPlainObject(rawValue)) {
+    return suffixMap;
+  }
+  for (const [language, suffix] of Object.entries(rawValue)) {
+    const normalizedLanguage = readString(language);
+    const normalizedSuffix = normalizeSuffix(suffix);
+    if (normalizedLanguage && normalizedSuffix) {
+      suffixMap[normalizedLanguage] = normalizedSuffix;
+    }
+  }
+  return suffixMap;
+}
+
 function asObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
@@ -507,6 +582,14 @@ function pushArg(args, name, value) {
 
 function readString(value) {
   return value == null ? '' : String(value).trim();
+}
+
+function normalizeSuffix(value) {
+  return readString(value).replace(/^_+/u, '');
+}
+
+function normalizeLanguage(value) {
+  return readString(value).toLowerCase().replace(/\s+/gu, '_');
 }
 
 function formatCost(value, currency) {
@@ -536,5 +619,6 @@ module.exports = {
   loadConfigFile,
   resolveCliInstallSpec,
   resolveTargetLanguage,
+  resolveTargetSuffix,
   summarizeTranslation,
 };

@@ -16,6 +16,7 @@ const {
   loadConfigFile,
   resolveCliInstallSpec,
   resolveTargetLanguage,
+  resolveTargetSuffix,
 } = require('../lib/shared');
 
 test('buildConfigProfiles returns default and provider profiles', () => {
@@ -164,7 +165,8 @@ test('buildCliArgs keeps config and explicit profile flags', () => {
       maxTokens: 64000,
     },
     '/tmp/config.yaml',
-    'Chinese'
+    'Chinese',
+    'zh'
   );
 
   assert.deepEqual(args, [
@@ -176,6 +178,8 @@ test('buildCliArgs keeps config and explicit profile flags', () => {
     '/tmp/config.yaml',
     '--language',
     'Chinese',
+    '--suffix',
+    'zh',
     '--provider',
     'openai',
     '--model',
@@ -208,7 +212,8 @@ test('buildCliArgs does not pass translate-only flags to estimate', () => {
       maxTokens: 8192,
     },
     null,
-    'Chinese'
+    'Chinese',
+    'zh'
   );
 
   assert.deepEqual(args, [
@@ -218,6 +223,8 @@ test('buildCliArgs does not pass translate-only flags to estimate', () => {
     '/tmp/a.md',
     '--language',
     'Chinese',
+    '--suffix',
+    'zh',
     '--provider',
     'deepseek',
     '--model',
@@ -240,6 +247,8 @@ test('findNearestConfigPath walks upward to workspace root', () => {
 test('buildEstimateMessage includes core estimate fields', () => {
   const message = buildEstimateMessage('/tmp/a.md', {
     language: 'Chinese',
+    suffix: 'zh',
+    chunk_size: 8192,
     provider: 'deepseek',
     model: 'deepseek-chat',
     summary: {
@@ -262,6 +271,8 @@ test('buildEstimateMessage includes core estimate fields', () => {
 
   assert.match(message, /待翻译文件: 2/);
   assert.match(message, /目标语言: Chinese/);
+  assert.match(message, /输出后缀: zh/);
+  assert.match(message, /chunk_size: 8192/);
   assert.match(message, /请求输入 tokens: 1100/);
   assert.match(message, /粗估总成本: 0\.003000 USD/);
 });
@@ -318,9 +329,15 @@ test('resolveCliInstallSpec uses PyPI package name', () => {
   assert.deepEqual(spec, { packageName: 'mdtomd' });
 });
 
-test('resolveTargetLanguage prefers config defaults then fallback', () => {
-  assert.equal(resolveTargetLanguage({ defaults: { language: 'Japanese' } }, 'Chinese'), 'Japanese');
+test('resolveTargetLanguage prefers VS Code setting then config default', () => {
+  assert.equal(resolveTargetLanguage({ defaults: { language: 'Japanese' } }, 'Chinese'), 'Chinese');
+  assert.equal(resolveTargetLanguage({ defaults: { language: 'Japanese' } }, ''), 'Japanese');
   assert.equal(resolveTargetLanguage({}, 'Chinese'), 'Chinese');
+});
+
+test('resolveTargetSuffix prefers suffix map then config default', () => {
+  assert.equal(resolveTargetSuffix({ defaults: { suffix: 'jp' } }, { Chinese: 'zh' }, 'Chinese'), 'zh');
+  assert.equal(resolveTargetSuffix({ defaults: { suffix: 'jp' } }, {}, 'Japanese'), 'ja');
 });
 
 test('findPriceItem finds matching featured model', () => {
@@ -350,13 +367,33 @@ test('buildStartTranslateMessage includes selected model and cost', () => {
   profile.label = 'DeepSeek 快';
   profile.provider = 'deepseek';
   profile.model = 'deepseek-chat';
-  const message = buildStartTranslateMessage('/tmp/a.md', 'Chinese', profile, {
-    available: true,
-    estimated_input_cost: 0.0001,
-    estimated_total_cost: 0.0003,
-    currency: 'USD',
-  });
+  const message = buildStartTranslateMessage(
+    '/tmp/a.md',
+    'Chinese',
+    'zh',
+    profile,
+    {
+      available: true,
+      estimated_input_cost: 0.0001,
+      estimated_total_cost: 0.0003,
+      currency: 'USD',
+    },
+    {
+      chunk_size: 8192,
+      summary: {
+        file_count: 1,
+        pending_file_count: 1,
+        skipped_file_count: 0,
+        chunk_count: 2,
+        source_tokens: 120,
+        request_input_tokens: 180,
+      },
+    }
+  );
 
   assert.match(message, /已选模型: DeepSeek 快/);
+  assert.match(message, /输出后缀: zh/);
+  assert.match(message, /chunk_size: 8192/);
+  assert.match(message, /请求输入 tokens: 180/);
   assert.match(message, /粗估总成本: 0\.000300 USD/);
 });

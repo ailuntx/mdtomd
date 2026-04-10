@@ -29,6 +29,7 @@
 也可以不直接填写 `apiKey`，改为填写 `apiKeyEnv`，然后在系统环境变量里准备好对应的 key。
 
 如果当前项目里已经有 `config.yaml`，扩展也会读取里面的 `providers` 配置。
+语言和输出后缀以 VS Code 插件设置为准，会覆盖 `config.yaml` 里的 `defaults.language` 和 `defaults.suffix`。
 
 ## 使用方式
 
@@ -50,6 +51,8 @@
 
 - `model`
 - `apiKey` 或 `apiKeyEnv`
+- `targetLanguage`
+- `languageSuffixes`
 - `baseUrl`
 - `maxTokens`
 

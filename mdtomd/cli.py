@@ -702,6 +702,7 @@ def _build_translate_payload(
 ) -> dict:
     normalized_results = [_normalize_translate_result(item) for item in results]
     summary = _summarize_translate_results(normalized_results)
+    effective_suffix = resolve_effective_suffix(options.suffix, options.language)
     payload = {
         "command": "translate",
         "ok": summary["failed"] == 0,
@@ -710,8 +711,11 @@ def _build_translate_payload(
         "resolved_input": input_value,
         "output_dir": output_dir or None,
         "language": options.language,
+        "suffix": effective_suffix,
         "provider": provider,
         "model": model,
+        "chunk_size": options.chunk_size,
+        "max_tokens": options.max_tokens,
         "config_path": str(Path(config.path).resolve()) if config.path else None,
         "summary": summary,
         "results": normalized_results,
@@ -739,6 +743,7 @@ def _build_estimate_payload(
     request_input_tokens: int,
     files: list[dict],
 ) -> dict:
+    effective_suffix = resolve_effective_suffix(options.suffix, options.language)
     return {
         "command": "estimate",
         "ok": True,
@@ -747,8 +752,11 @@ def _build_estimate_payload(
         "resolved_input": input_value,
         "output_dir": output_dir or None,
         "language": options.language,
+        "suffix": effective_suffix,
         "provider": options.provider,
         "model": options.resolved_model,
+        "chunk_size": options.chunk_size,
+        "max_tokens": options.max_tokens,
         "config_path": str(Path(config.path).resolve()) if config.path else None,
         "tokenizer": tokenizer,
         "approximate": approximate,

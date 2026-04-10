@@ -19,6 +19,7 @@ const {
   loadConfigFile,
   resolveTargetLanguage,
   resolveCliInstallSpec,
+  resolveTargetSuffix,
   summarizeTranslation,
 } = require('./lib/shared');
 
@@ -96,6 +97,7 @@ function activate(context) {
 
     const settings = vscode.workspace.getConfiguration('mdtomd');
     const targetLanguage = resolveTargetLanguage(config, settings.get('targetLanguage'));
+    const targetSuffix = resolveTargetSuffix(config, settings.get('languageSuffixes'), targetLanguage);
 
     const cwd = configPath ? path.dirname(configPath) : workspaceFolder?.uri.fsPath || searchRoot;
     const estimateResult = await runCliJson({
@@ -105,6 +107,7 @@ function activate(context) {
       configPath,
       cwd,
       targetLanguage,
+      targetSuffix,
       outputChannel,
     });
     if (!ensureCliSuccess('estimate', estimateResult, outputChannel)) {
@@ -154,8 +157,36 @@ function activate(context) {
       return;
     }
 
+    const selectedEstimateResult = await runCliJson({
+      command: 'estimate',
+      targetPath,
+      profile,
+      configPath,
+      cwd,
+      targetLanguage,
+      targetSuffix,
+      outputChannel,
+    });
+    if (!ensureCliSuccess('estimate', selectedEstimateResult, outputChannel)) {
+      return;
+    }
+    const selectedEstimate = selectedEstimateResult.payload;
+    const selectedPendingCount = selectedEstimate.summary?.pending_file_count ?? 0;
+    if (selectedPendingCount <= 0) {
+      showStatus(`$(check) mdtomd 已完成 ${fileCount}/${fileCount}`, 5000);
+      vscode.window.showInformationMessage('按当前模型和后缀配置，没有待翻译文件。');
+      return;
+    }
+
     const startConfirmation = await vscode.window.showInformationMessage(
-      buildStartTranslateMessage(targetPath, targetLanguage, profile, findPriceItem(estimate, profile.provider, profile.model)),
+      buildStartTranslateMessage(
+        targetPath,
+        targetLanguage,
+        targetSuffix,
+        profile,
+        findPriceItem(selectedEstimate, profile.provider, profile.model),
+        selectedEstimate
+      ),
       { modal: true },
       '开始翻译'
     );
@@ -163,7 +194,7 @@ function activate(context) {
       return;
     }
 
-    showStatus(`$(sync~spin) mdtomd 翻译中 0/${pendingCount}`);
+    showStatus(`$(sync~spin) mdtomd 翻译中 0/${selectedPendingCount}`);
     const translateResult = await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
@@ -178,6 +209,7 @@ function activate(context) {
           configPath,
           cwd,
           targetLanguage,
+          targetSuffix,
           outputChannel,
         })
     );
@@ -525,9 +557,9 @@ function activate(context) {
     return [base, profile.detail].filter(Boolean).join(' | ');
   }
 
-  async function runCliJson({ command, targetPath, profile, configPath, cwd, targetLanguage, outputChannel }) {
+  async function runCliJson({ command, targetPath, profile, configPath, cwd, targetLanguage, targetSuffix, outputChannel }) {
     const settings = vscode.workspace.getConfiguration('mdtomd');
-    const args = buildCliArgs(command, targetPath, profile, configPath, targetLanguage);
+    const args = buildCliArgs(command, targetPath, profile, configPath, targetLanguage, targetSuffix);
     const candidates = getCliCandidates(settings, cwd);
     let lastMissing = null;
 
