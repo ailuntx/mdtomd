@@ -12,6 +12,7 @@
     "Other"
   ],
   "activationEvents": [
+    "onStartupFinished",
     "onCommand:mdtomd.translateResource",
     "onCommand:mdtomd.translateCurrentFile"
   ],

@@ -17,13 +17,16 @@ const {
   isMarkdownPath,
   loadConfigFile,
   resolveTargetLanguage,
+  resolveCliInstallSpec,
   summarizeTranslation,
 } = require('./lib/shared');
 
 function activate(context) {
   const outputChannel = vscode.window.createOutputChannel('mdtomd');
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+  const bootstrapVersionKey = 'mdtomd.cliBootstrapVersion';
   let statusTimer = null;
+  let cliBootstrapPromise = null;
 
   context.subscriptions.push(outputChannel, statusBar);
   context.subscriptions.push(
@@ -36,6 +39,7 @@ function activate(context) {
       translateResource(vscode.window.activeTextEditor?.document.uri, { outputChannel, statusBar, clearStatusTimer: () => clearStatusTimer() })
     )
   );
+  void bootstrapCliOnce();
 
   function clearStatusTimer() {
     if (statusTimer) {
@@ -73,6 +77,10 @@ function activate(context) {
 
     const workspaceFolder = vscode.workspace.getWorkspaceFolder(targetUri);
     const searchRoot = stat.isDirectory() ? targetPath : path.dirname(targetPath);
+    const cliReady = await ensureCliReady(searchRoot, { interactive: true });
+    if (!cliReady) {
+      return;
+    }
     const configPath = findNearestConfigPath(searchRoot, workspaceFolder?.uri.fsPath);
 
     let config = {};
@@ -184,6 +192,150 @@ function activate(context) {
     }
 
     vscode.window.showInformationMessage(`翻译完成: ${summary.completed}/${summary.fileCount}`);
+  }
+
+  async function bootstrapCliOnce() {
+    const extensionVersion = getExtensionVersion();
+    if (context.globalState.get(bootstrapVersionKey) === extensionVersion) {
+      return;
+    }
+    await context.globalState.update(bootstrapVersionKey, extensionVersion);
+    await ensureCliReady(resolveWorkspaceDir(), { interactive: false });
+  }
+
+  async function ensureCliReady(workspaceDir, { interactive }) {
+    const settings = vscode.workspace.getConfiguration('mdtomd');
+    const resolvedWorkspaceDir = workspaceDir || resolveWorkspaceDir();
+    const cliAvailable = await hasWorkingCli(settings, resolvedWorkspaceDir);
+    if (cliAvailable) {
+      return true;
+    }
+
+    if (!interactive) {
+      return installCli(settings, resolvedWorkspaceDir, { notifySuccess: false, silentFailure: true });
+    }
+
+    if (!cliBootstrapPromise) {
+      cliBootstrapPromise = vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'mdtomd 正在自动安装 CLI',
+          cancellable: false,
+        },
+        async () => installCli(settings, resolvedWorkspaceDir, { notifySuccess: true, silentFailure: false })
+      ).finally(() => {
+        cliBootstrapPromise = null;
+      });
+    }
+    return cliBootstrapPromise;
+  }
+
+  async function installCli(settings, workspaceDir, { notifySuccess, silentFailure }) {
+    outputChannel.appendLine('未检测到 mdtomd CLI，开始自动安装。');
+
+    const installSpec = resolveCliInstallSpec(__dirname);
+    if (installSpec.installerPath) {
+      outputChannel.appendLine(`> bash ${installSpec.installerPath}`);
+      const result = await spawnProcess('bash', [installSpec.installerPath], workspaceDir);
+      appendProcessOutput(outputChannel, result);
+      if (result.error) {
+        return handleCliInstallFailure(result.error.message || String(result.error), { silentFailure });
+      }
+      if (result.code === 0 && await hasWorkingCli(settings, workspaceDir)) {
+        if (notifySuccess) {
+          vscode.window.showInformationMessage('mdtomd CLI 已自动安装完成，现在可以直接翻译。');
+        }
+        return true;
+      }
+    }
+
+    for (const candidate of getPythonInstallCandidates(settings)) {
+      const args = ['-m', 'pip', 'install', '--user'];
+      if (installSpec.editablePath) {
+        args.push('-e', installSpec.editablePath);
+      } else {
+        args.push('-U', installSpec.packageName);
+      }
+      outputChannel.appendLine(`> ${formatCommand({ command: candidate.command, baseArgs: [] }, args)}  (cwd=${workspaceDir})`);
+      const result = await spawnProcess(candidate.command, args, workspaceDir);
+      appendProcessOutput(outputChannel, result);
+      if (result.error && result.error.code === 'ENOENT') {
+        outputChannel.appendLine(`命令不存在: ${candidate.command}`);
+        continue;
+      }
+      if (result.code === 0 && await hasWorkingCli(settings, workspaceDir)) {
+        if (notifySuccess) {
+          vscode.window.showInformationMessage('mdtomd CLI 已自动安装完成，现在可以直接翻译。');
+        }
+        return true;
+      }
+    }
+
+    return handleCliInstallFailure('自动安装 mdtomd CLI 失败，请先安装 Python 3，或手动执行 ./scripts/install_cli.sh。', { silentFailure });
+  }
+
+  function handleCliInstallFailure(message, { silentFailure }) {
+    if (silentFailure) {
+      outputChannel.appendLine(message);
+      return false;
+    }
+    outputChannel.show(true);
+    vscode.window.showErrorMessage(message);
+    return false;
+  }
+
+  async function hasWorkingCli(settings, workspaceDir) {
+    const candidates = getCliCandidates(settings, workspaceDir);
+    for (const candidate of candidates) {
+      const result = await spawnProcess(candidate.command, [...candidate.baseArgs, 'providers'], workspaceDir);
+      if (result.error && result.error.code === 'ENOENT') {
+        continue;
+      }
+      if (result.code === 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function appendProcessOutput(channel, result) {
+    if (result.stdout.trim()) {
+      channel.appendLine(result.stdout.trim());
+    }
+    if (result.stderr.trim()) {
+      channel.appendLine(result.stderr.trim());
+    }
+  }
+
+  function getPythonInstallCandidates(settings) {
+    const candidates = [];
+    const preferred = (settings.get('pythonPath') || 'python3').trim();
+    if (preferred) {
+      candidates.push({ command: preferred });
+    }
+    candidates.push({ command: 'python3' });
+    candidates.push({ command: 'python' });
+    if (process.platform === 'win32') {
+      candidates.push({ command: 'py' });
+    }
+
+    const seen = new Set();
+    return candidates.filter((candidate) => {
+      if (seen.has(candidate.command)) {
+        return false;
+      }
+      seen.add(candidate.command);
+      return true;
+    });
+  }
+
+  function resolveWorkspaceDir() {
+    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || __dirname;
+  }
+
+  function getExtensionVersion() {
+    const extension = vscode.extensions.getExtension('ailuntz.mdtomd-vscode');
+    return extension?.packageJSON?.version || 'dev';
   }
 
   async function pickProfile(profiles, estimatePayload) {

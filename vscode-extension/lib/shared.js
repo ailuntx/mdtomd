@@ -52,6 +52,25 @@ function loadConfigFile(configPath) {
   return loadSimpleYaml(fs.readFileSync(configPath, 'utf8'));
 }
 
+function resolveCliInstallSpec(extensionDir) {
+  const repoRoot = path.resolve(extensionDir, '..');
+  const pyprojectPath = path.join(repoRoot, 'pyproject.toml');
+  const cliModulePath = path.join(repoRoot, 'mdtomd', 'cli.py');
+  const installerPath = path.join(repoRoot, 'scripts', 'install_cli.sh');
+  if (fs.existsSync(pyprojectPath) && fs.existsSync(cliModulePath)) {
+    return {
+      editablePath: repoRoot,
+      installerPath: fs.existsSync(installerPath) ? installerPath : '',
+      packageName: 'mdtomd',
+    };
+  }
+  return {
+    editablePath: '',
+    installerPath: '',
+    packageName: 'mdtomd',
+  };
+}
+
 function buildConfigProfiles(rawConfig, configPath) {
   const llm = asObject(rawConfig.llm);
   const providers = asObject(rawConfig.providers);
@@ -482,6 +501,7 @@ module.exports = {
   getCliCandidates,
   isMarkdownPath,
   loadConfigFile,
+  resolveCliInstallSpec,
   resolveTargetLanguage,
   summarizeTranslation,
 };
