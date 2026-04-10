@@ -301,7 +301,9 @@ function buildCliArgs(command, inputPath, profile, configPath, targetLanguage, t
 
   pushArg(args, '--language', targetLanguage);
   pushArg(args, '--suffix', targetSuffix);
-  pushArg(args, '--timeout-sec', timeoutSec);
+  if (command === 'translate' || command === 'run') {
+    pushArg(args, '--timeout-sec', timeoutSec);
+  }
 
   if (profile && !profile.useDefaults) {
     pushArg(args, '--provider', profile.provider);

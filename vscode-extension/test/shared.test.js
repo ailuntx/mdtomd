@@ -257,8 +257,6 @@ test('buildCliArgs does not pass translate-only flags to estimate', () => {
     'Chinese',
     '--suffix',
     'zh',
-    '--timeout-sec',
-    '90',
     '--provider',
     'deepseek',
     '--model',

@@ -2,7 +2,7 @@
   "name": "mdtomd-vscode",
   "displayName": "mdtomd",
   "description": "在 VS Code 里右键翻译 Markdown，支持先估算价格再选择模型",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "ailuntz",
   "icon": "media/icon.png",
   "license": "UNLICENSED",
