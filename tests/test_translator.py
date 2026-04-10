@@ -117,6 +117,18 @@ class MarkdownTranslatorTests(TestCase):
         self.assertGreater(estimate.request_input_tokens, estimate.source_tokens)
         self.assertTrue(estimate.tokenizer)
 
+    def test_estimate_markdown_tokens_allows_special_token_text(self) -> None:
+        estimate = self.translator.estimate_markdown_tokens(
+            "# Title\n\nliteral token: <|endoftext|>\n",
+            "Chinese",
+            chunk_size=100,
+            model="gpt-4.1-mini",
+        )
+
+        self.assertEqual(estimate.chunk_count, 1)
+        self.assertGreater(estimate.source_tokens, 0)
+        self.assertGreater(estimate.request_input_tokens, estimate.source_tokens)
+
     def test_translate_markdown_uses_llm_model_for_chunking(self) -> None:
         class FakeTokenCounter:
             def count_text(self, text: str) -> int:

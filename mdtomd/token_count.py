@@ -49,7 +49,10 @@ class TokenCounter:
         if not normalized:
             return 0
         if self._encoding is not None:
-            return len(self._encoding.encode(normalized))
+            try:
+                return len(self._encoding.encode(normalized, disallowed_special=()))
+            except TypeError:
+                return len(self._encoding.encode(normalized))
         return max(1, math.ceil(len(normalized) / 4))
 
     def count_messages(self, messages: list[dict[str, str]]) -> int:
