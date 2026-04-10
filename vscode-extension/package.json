@@ -1,0 +1,529 @@
+{
+  "name": "mdtomd-vscode",
+  "displayName": "mdtomd",
+  "description": "在 VS Code 里右键翻译 Markdown，支持先估算价格再选择模型",
+  "version": "0.1.2",
+  "publisher": "ailuntz",
+  "icon": "media/icon.png",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ailuntx/mdtomd.git",
+    "directory": "vscode-extension"
+  },
+  "homepage": "https://github.com/ailuntx/mdtomd/tree/main/vscode-extension",
+  "keywords": [
+    "markdown",
+    "mdx",
+    "translation",
+    "llm"
+  ],
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:mdtomd.translateResource",
+    "onCommand:mdtomd.translateCurrentFile"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "mdtomd.translateResource",
+        "title": "mdtomd: 翻译 Markdown"
+      },
+      {
+        "command": "mdtomd.translateCurrentFile",
+        "title": "mdtomd: 翻译当前 Markdown"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "mdtomd.translateResource",
+          "when": "resourceExtname == .md || resourceExtname == .markdown || resourceExtname == .mdx",
+          "group": "navigation@9"
+        },
+        {
+          "command": "mdtomd.translateResource",
+          "when": "explorerResourceIsFolder",
+          "group": "navigation@9"
+        }
+      ]
+    },
+    "configuration": [
+      {
+        "title": "mdtomd 通用",
+        "properties": {
+          "mdtomd.cliPath": {
+            "type": "string",
+            "default": "",
+            "description": "mdtomd CLI 可执行文件路径。留空时会依次尝试 mdtomd、python3 -m mdtomd、python -m mdtomd。"
+          },
+          "mdtomd.pythonPath": {
+            "type": "string",
+            "default": "python3",
+            "description": "回退到 python -m mdtomd 时使用的 Python 可执行文件。"
+          },
+          "mdtomd.targetLanguage": {
+            "type": "string",
+            "default": "Chinese",
+            "enum": [
+              "Spanish",
+              "French",
+              "German",
+              "Italian",
+              "Portuguese",
+              "Dutch",
+              "Russian",
+              "Chinese",
+              "Japanese",
+              "Korean",
+              "Arabic",
+              "Hindi",
+              "Turkish",
+              "Polish",
+              "Swedish",
+              "Norwegian",
+              "Danish",
+              "Finnish",
+              "Greek",
+              "Hebrew",
+              "Thai",
+              "Vietnamese",
+              "Indonesian",
+              "Malay",
+              "Ukrainian",
+              "Czech",
+              "Hungarian",
+              "Romanian",
+              "Bulgarian",
+              "Croatian",
+              "Serbian",
+              "Slovak",
+              "Slovenian",
+              "Estonian",
+              "Latvian",
+              "Lithuanian",
+              "Catalan",
+              "Basque",
+              "Welsh",
+              "Irish"
+            ],
+            "description": "未在 config.yaml 的 defaults.language 中设置时使用的目标语言。"
+          },
+          "mdtomd.showOutputChannelOnSuccess": {
+            "type": "boolean",
+            "default": false,
+            "description": "命令成功后也自动打开 mdtomd 输出面板。"
+          }
+        }
+      },
+      {
+        "title": "mdtomd DeepSeek",
+        "properties": {
+          "mdtomd.deepseek.model": {
+            "type": "string",
+            "default": "",
+            "description": "DeepSeek 的 model，例如 deepseek-chat"
+          },
+          "mdtomd.deepseek.baseUrl": {
+            "type": "string",
+            "default": "https://api.deepseek.com/v1",
+            "description": "DeepSeek 的 base_url"
+          },
+          "mdtomd.deepseek.apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "DeepSeek 的 api_key"
+          },
+          "mdtomd.deepseek.apiKeyEnv": {
+            "type": "string",
+            "default": "DEEPSEEK_API_KEY",
+            "description": "DeepSeek 的 api_key_env"
+          },
+          "mdtomd.deepseek.apiMode": {
+            "type": "string",
+            "default": "chat_completions",
+            "description": "DeepSeek 的 api_mode"
+          },
+          "mdtomd.deepseek.maxTokens": {
+            "type": "number",
+            "default": 8192,
+            "description": "DeepSeek 的 max_tokens"
+          }
+        }
+      },
+      {
+        "title": "mdtomd MiniMax",
+        "properties": {
+          "mdtomd.minimax.model": {
+            "type": "string",
+            "default": "",
+            "description": "MiniMax 的 model，例如 MiniMax-M1"
+          },
+          "mdtomd.minimax.baseUrl": {
+            "type": "string",
+            "default": "https://api.minimaxi.com/v1",
+            "description": "MiniMax 的 base_url"
+          },
+          "mdtomd.minimax.apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "MiniMax 的 api_key"
+          },
+          "mdtomd.minimax.apiKeyEnv": {
+            "type": "string",
+            "default": "MINIMAX_API_KEY",
+            "description": "MiniMax 的 api_key_env"
+          },
+          "mdtomd.minimax.apiMode": {
+            "type": "string",
+            "default": "chat_completions",
+            "description": "MiniMax 的 api_mode"
+          },
+          "mdtomd.minimax.maxTokens": {
+            "type": "number",
+            "default": 64000,
+            "description": "MiniMax 的 max_tokens"
+          }
+        }
+      },
+      {
+        "title": "mdtomd OpenAI",
+        "properties": {
+          "mdtomd.openai.model": {
+            "type": "string",
+            "default": "",
+            "description": "OpenAI 的 model，例如 gpt-4.1-mini"
+          },
+          "mdtomd.openai.baseUrl": {
+            "type": "string",
+            "default": "https://api.openai.com/v1",
+            "description": "OpenAI 的 base_url"
+          },
+          "mdtomd.openai.apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "OpenAI 的 api_key"
+          },
+          "mdtomd.openai.apiKeyEnv": {
+            "type": "string",
+            "default": "OPENAI_API_KEY",
+            "description": "OpenAI 的 api_key_env"
+          },
+          "mdtomd.openai.apiMode": {
+            "type": "string",
+            "default": "auto",
+            "description": "OpenAI 的 api_mode"
+          },
+          "mdtomd.openai.maxTokens": {
+            "type": "number",
+            "default": 32000,
+            "description": "OpenAI 的 max_tokens"
+          }
+        }
+      },
+      {
+        "title": "mdtomd OpenAI Codex",
+        "properties": {
+          "mdtomd.openaiCodex.model": {
+            "type": "string",
+            "default": "",
+            "description": "OpenAI Codex 的 model，例如 gpt-5.4-mini"
+          },
+          "mdtomd.openaiCodex.baseUrl": {
+            "type": "string",
+            "default": "https://chatgpt.com/backend-api/codex",
+            "description": "OpenAI Codex 的 base_url"
+          },
+          "mdtomd.openaiCodex.apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "OpenAI Codex 的 access token"
+          },
+          "mdtomd.openaiCodex.apiKeyEnv": {
+            "type": "string",
+            "default": "OPENAI_CODEX_ACCESS_TOKEN",
+            "description": "OpenAI Codex 的 access token 环境变量"
+          },
+          "mdtomd.openaiCodex.codexHome": {
+            "type": "string",
+            "default": "",
+            "description": "OpenAI Codex 的 codex_home，可用于定位 auth.json"
+          },
+          "mdtomd.openaiCodex.authFile": {
+            "type": "string",
+            "default": "",
+            "description": "OpenAI Codex 的 auth_file，直接指定 auth.json 路径"
+          },
+          "mdtomd.openaiCodex.apiMode": {
+            "type": "string",
+            "default": "responses",
+            "description": "OpenAI Codex 的 api_mode"
+          },
+          "mdtomd.openaiCodex.maxTokens": {
+            "type": "number",
+            "default": 64000,
+            "description": "OpenAI Codex 的 max_tokens"
+          }
+        }
+      },
+      {
+        "title": "mdtomd OpenRouter",
+        "properties": {
+          "mdtomd.openrouter.model": {
+            "type": "string",
+            "default": "",
+            "description": "OpenRouter 的 model，例如 google/gemini-2.5-flash-lite"
+          },
+          "mdtomd.openrouter.baseUrl": {
+            "type": "string",
+            "default": "https://openrouter.ai/api/v1",
+            "description": "OpenRouter 的 base_url"
+          },
+          "mdtomd.openrouter.apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "OpenRouter 的 api_key"
+          },
+          "mdtomd.openrouter.apiKeyEnv": {
+            "type": "string",
+            "default": "OPENROUTER_API_KEY",
+            "description": "OpenRouter 的 api_key_env"
+          },
+          "mdtomd.openrouter.apiMode": {
+            "type": "string",
+            "default": "chat_completions",
+            "description": "OpenRouter 的 api_mode"
+          },
+          "mdtomd.openrouter.maxTokens": {
+            "type": "number",
+            "default": 65536,
+            "description": "OpenRouter 的 max_tokens"
+          }
+        }
+      },
+      {
+        "title": "mdtomd Anthropic",
+        "properties": {
+          "mdtomd.anthropic.model": {
+            "type": "string",
+            "default": "",
+            "description": "Anthropic 的 model，例如 claude-3-5-sonnet-latest"
+          },
+          "mdtomd.anthropic.baseUrl": {
+            "type": "string",
+            "default": "https://api.anthropic.com",
+            "description": "Anthropic 的 base_url"
+          },
+          "mdtomd.anthropic.apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "Anthropic 的 api_key"
+          },
+          "mdtomd.anthropic.apiKeyEnv": {
+            "type": "string",
+            "default": "ANTHROPIC_API_KEY",
+            "description": "Anthropic 的 api_key_env"
+          },
+          "mdtomd.anthropic.apiMode": {
+            "type": "string",
+            "default": "",
+            "description": "Anthropic 的 api_mode"
+          },
+          "mdtomd.anthropic.maxTokens": {
+            "type": "number",
+            "default": 64000,
+            "description": "Anthropic 的 max_tokens"
+          }
+        }
+      },
+      {
+        "title": "mdtomd Gemini",
+        "properties": {
+          "mdtomd.gemini.model": {
+            "type": "string",
+            "default": "",
+            "description": "Gemini 的 model，例如 gemini-2.5-flash"
+          },
+          "mdtomd.gemini.baseUrl": {
+            "type": "string",
+            "default": "https://generativelanguage.googleapis.com/v1beta",
+            "description": "Gemini 的 base_url"
+          },
+          "mdtomd.gemini.apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "Gemini 的 api_key"
+          },
+          "mdtomd.gemini.apiKeyEnv": {
+            "type": "string",
+            "default": "GEMINI_API_KEY",
+            "description": "Gemini 的 api_key_env"
+          },
+          "mdtomd.gemini.apiMode": {
+            "type": "string",
+            "default": "",
+            "description": "Gemini 的 api_mode"
+          },
+          "mdtomd.gemini.maxTokens": {
+            "type": "number",
+            "default": 65536,
+            "description": "Gemini 的 max_tokens"
+          }
+        }
+      },
+      {
+        "title": "mdtomd Z.ai",
+        "properties": {
+          "mdtomd.zai.model": {
+            "type": "string",
+            "default": "",
+            "description": "Z.ai 的 model，例如 glm-5"
+          },
+          "mdtomd.zai.baseUrl": {
+            "type": "string",
+            "default": "https://api.z.ai/api/paas/v4",
+            "description": "Z.ai 的 base_url"
+          },
+          "mdtomd.zai.apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "Z.ai 的 api_key"
+          },
+          "mdtomd.zai.apiKeyEnv": {
+            "type": "string",
+            "default": "GLM_API_KEY",
+            "description": "Z.ai 的 api_key_env"
+          },
+          "mdtomd.zai.apiMode": {
+            "type": "string",
+            "default": "chat_completions",
+            "description": "Z.ai 的 api_mode"
+          },
+          "mdtomd.zai.maxTokens": {
+            "type": "number",
+            "default": 32000,
+            "description": "Z.ai 的 max_tokens"
+          }
+        }
+      },
+      {
+        "title": "mdtomd Kimi",
+        "properties": {
+          "mdtomd.kimi.model": {
+            "type": "string",
+            "default": "",
+            "description": "Kimi 的 model，例如 moonshot-v1-8k"
+          },
+          "mdtomd.kimi.baseUrl": {
+            "type": "string",
+            "default": "https://api.moonshot.cn/v1",
+            "description": "Kimi 的 base_url"
+          },
+          "mdtomd.kimi.apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "Kimi 的 api_key"
+          },
+          "mdtomd.kimi.apiKeyEnv": {
+            "type": "string",
+            "default": "KIMI_API_KEY",
+            "description": "Kimi 的 api_key_env"
+          },
+          "mdtomd.kimi.apiMode": {
+            "type": "string",
+            "default": "chat_completions",
+            "description": "Kimi 的 api_mode"
+          },
+          "mdtomd.kimi.maxTokens": {
+            "type": "number",
+            "default": 8000,
+            "description": "Kimi 的 max_tokens"
+          }
+        }
+      },
+      {
+        "title": "mdtomd Alibaba",
+        "properties": {
+          "mdtomd.alibaba.model": {
+            "type": "string",
+            "default": "",
+            "description": "Alibaba DashScope 的 model，例如 qwen-plus"
+          },
+          "mdtomd.alibaba.baseUrl": {
+            "type": "string",
+            "default": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+            "description": "Alibaba DashScope 的 base_url"
+          },
+          "mdtomd.alibaba.apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "Alibaba DashScope 的 api_key"
+          },
+          "mdtomd.alibaba.apiKeyEnv": {
+            "type": "string",
+            "default": "DASHSCOPE_API_KEY",
+            "description": "Alibaba DashScope 的 api_key_env"
+          },
+          "mdtomd.alibaba.apiMode": {
+            "type": "string",
+            "default": "chat_completions",
+            "description": "Alibaba DashScope 的 api_mode"
+          },
+          "mdtomd.alibaba.maxTokens": {
+            "type": "number",
+            "default": 16000,
+            "description": "Alibaba DashScope 的 max_tokens"
+          }
+        }
+      },
+      {
+        "title": "mdtomd OpenAI Compatible",
+        "properties": {
+          "mdtomd.openaiCompatible.model": {
+            "type": "string",
+            "default": "",
+            "description": "OpenAI-Compatible 的 model，例如 qwen2.5-14b-instruct"
+          },
+          "mdtomd.openaiCompatible.baseUrl": {
+            "type": "string",
+            "default": "http://localhost:8000/v1",
+            "description": "OpenAI-Compatible 的 base_url"
+          },
+          "mdtomd.openaiCompatible.apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "OpenAI-Compatible 的 api_key"
+          },
+          "mdtomd.openaiCompatible.apiKeyEnv": {
+            "type": "string",
+            "default": "LLM_API_KEY",
+            "description": "OpenAI-Compatible 的 api_key_env"
+          },
+          "mdtomd.openaiCompatible.apiMode": {
+            "type": "string",
+            "default": "chat_completions",
+            "description": "OpenAI-Compatible 的 api_mode"
+          },
+          "mdtomd.openaiCompatible.maxTokens": {
+            "type": "number",
+            "default": 8192,
+            "description": "OpenAI-Compatible 的 max_tokens"
+          }
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "check": "node --check extension.js",
+    "test": "node --test ./test/*.test.js",
+    "prepackage": "npm run check && npm test",
+    "package": "npx @vscode/vsce package --allow-missing-repository --out mdtomd-vscode.vsix"
+  }
+}

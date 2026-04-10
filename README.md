@@ -24,6 +24,12 @@ python3 -m pip install mdtomd
 python3 -m pip install -e .
 ```
 
+如果想尽量自动把 `mdtomd` 放进当前机器的可执行路径：
+
+```bash
+./scripts/install_cli.sh
+```
+
 **配置**
 
 直接改 `config.yaml` 即可。
@@ -77,6 +83,13 @@ mdtomd estimate -i examples/doc1.md
 mdtomd estimate -i examples
 ```
 
+给插件或脚本用结构化输出：
+
+```bash
+mdtomd estimate -i examples/doc1.md --json
+mdtomd translate -i examples/doc1.md --json
+```
+
 查看 provider 和模型：
 
 ```bash
@@ -117,3 +130,18 @@ python3 -m unittest discover -s tests -v
 export TWINE_PASSWORD="pypi-***"
 ./scripts/publish_cli.sh
 ```
+
+**VS Code 插件**
+
+插件目录在 `vscode-extension/`。
+
+当前插件已支持：
+
+- 文件树右键翻译 Markdown 文件
+- 文件树右键翻译文件夹
+- 首次安装后自动检测 CLI，缺失时会从 PyPI 自动安装 `mdtomd`
+- 先调用 `estimate --json` 弹确认框
+- 从 `config.yaml` 已配模型里选择
+- 直接在 VS Code 设置面板里按“通用 + 厂商分组”填写模型参数，不需要手改 `settings.json`
+- 支持 DeepSeek、MiniMax、OpenAI、OpenAI Codex、OpenRouter、Anthropic、Gemini、Z.ai、Kimi、Alibaba、OpenAI Compatible
+- 状态栏显示完成结果
