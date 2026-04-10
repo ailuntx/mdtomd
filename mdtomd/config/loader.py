@@ -97,7 +97,7 @@ def _parse_translator_config(raw: dict[str, Any]) -> TranslatorConfig:
     if not isinstance(raw, dict):
         return TranslatorConfig()
     return TranslatorConfig(
-        chunk_size=_read_int(raw, "chunk_size", 12000),
+        chunk_size=_read_optional_int(raw, "chunk_size"),
         chunk_sleep_seconds=_read_float(raw, "chunk_sleep_seconds", 0.5),
     )
 

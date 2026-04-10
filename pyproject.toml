@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mdtomd"
+version = "0.1.0"
+description = "Markdown/MDX translation CLI"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "openai>=1.75,<2",
+    "tiktoken>=0.8,<1",
+]
+
+[project.scripts]
+mdtomd = "mdtomd.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["mdtomd*"]

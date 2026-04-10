@@ -54,7 +54,7 @@ class ProviderOverrideConfig:
 
 @dataclass(frozen=True)
 class TranslatorConfig:
-    chunk_size: int = 12000
+    chunk_size: int | None = None
     chunk_sleep_seconds: float = 0.5
 
 
@@ -87,4 +87,3 @@ class AppConfig:
     display: DisplayConfig = field(default_factory=DisplayConfig)
     translator: TranslatorConfig = field(default_factory=TranslatorConfig)
     defaults: DefaultsConfig = field(default_factory=DefaultsConfig)
-

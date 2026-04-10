@@ -238,6 +238,38 @@ class MarkdownTranslatorTests(TestCase):
             self.assertEqual(results[0]["reason"], "up-to-date")
             translate_markdown.assert_not_called()
 
+    def test_translate_files_uses_language_suffix_when_suffix_empty(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            docs_dir = temp_path / "docs"
+            docs_dir.mkdir()
+
+            input_path = docs_dir / "a.md"
+            input_path.write_text("# A\n", encoding="utf-8")
+
+            mocked_translation = MarkdownTranslationResult(
+                content="译文\n",
+                chunk_count=1,
+                prompt_tokens=8,
+                completion_tokens=6,
+                total_tokens=14,
+            )
+            mocked_estimate = mock.Mock(
+                source_tokens=5,
+                request_input_tokens=9,
+                tokenizer="o200k_base",
+                approximate=False,
+            )
+            with mock.patch.object(self.translator, "estimate_markdown_tokens", return_value=mocked_estimate):
+                with mock.patch.object(self.translator, "translate_markdown_with_stats", return_value=mocked_translation):
+                    results = self.translator.translate_files(
+                        str(docs_dir / "*.md"),
+                        temp_path / "out",
+                        "Chinese",
+                    )
+
+            self.assertEqual(Path(results[0]["outputPath"]).name, "a_chinese.md")
+
     def test_translate_files_skips_translated_inputs(self) -> None:
         with TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)

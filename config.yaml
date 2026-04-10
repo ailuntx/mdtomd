@@ -224,7 +224,7 @@ display:
       label: Qwen 3.6 Plus
 
 translator:
-  chunk_size: 8000
+  chunk_size:
   chunk_sleep_seconds: 0.5
 
 defaults:
