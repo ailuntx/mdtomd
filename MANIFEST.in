@@ -1,0 +1,10 @@
+include README.md
+include pyproject.toml
+graft mdtomd
+graft scripts
+prune tests
+prune vscode-extension
+prune examples
+exclude config.yaml
+exclude env.example
+exclude llm-prices.md
