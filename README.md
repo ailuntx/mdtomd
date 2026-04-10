@@ -2,7 +2,7 @@
 
 一个给自己用的 Markdown/MDX 翻译工具。
 
-默认会读取当前目录的 [config.yaml](/Volumes/usb_main/home/template_paper/mdtomd/config.yaml)，支持：
+默认会读取当前目录的 `config.yaml`，支持：
 
 - 单文件翻译
 - 目录批量翻译
@@ -12,20 +12,28 @@
 
 **安装**
 
+发布版安装：
+
 ```bash
-cd /Volumes/usb_main/home/template_paper/mdtomd
-python3 -m pip install -r requirements.txt
+python3 -m pip install mdtomd
+```
+
+本地开发安装：
+
+```bash
+python3 -m pip install -e .
 ```
 
 **配置**
 
-直接改 [config.yaml](/Volumes/usb_main/home/template_paper/mdtomd/config.yaml) 即可。
+直接改 `config.yaml` 即可。
 
 常见方式：
 
 1. 在 `providers.<provider>` 里写 `model/base_url/api_key/max_tokens`
 2. 在 `llm.provider` 里选默认 provider
-3. 临时覆盖时再用命令行参数或环境变量
+3. `translator.chunk_size` 留空时，会默认跟当前模型的 `max_tokens` 一致
+4. 临时覆盖时再用命令行参数或环境变量
 
 如果不想把 key 写进配置，可以用环境变量，例如：
 
@@ -35,16 +43,23 @@ export DEEPSEEK_API_KEY="your-key"
 
 **用法**
 
+快捷命令，先 estimate 再 translate：
+
+```bash
+mdtomd examples/doc1.md
+mdtomd examples
+```
+
 单文件翻译：
 
 ```bash
-python3 -m mdtomd translate -i examples/doc1.md
+mdtomd translate -i examples/doc1.md
 ```
 
 目录翻译：
 
 ```bash
-python3 -m mdtomd translate -i examples
+mdtomd translate -i examples
 ```
 
 目录输入会自动递归处理，并默认把结果写回原目录，生成 `*_zh.md` / `*_zh.mdx`。
@@ -52,21 +67,21 @@ python3 -m mdtomd translate -i examples
 如果想输出到别的目录：
 
 ```bash
-python3 -m mdtomd translate -i examples --output-dir out
+mdtomd translate -i examples --output-dir out
 ```
 
 先看 token：
 
 ```bash
-python3 -m mdtomd estimate -i examples/doc1.md
-python3 -m mdtomd estimate -i examples
+mdtomd estimate -i examples/doc1.md
+mdtomd estimate -i examples
 ```
 
 查看 provider 和模型：
 
 ```bash
-python3 -m mdtomd providers
-python3 -m mdtomd models
+mdtomd providers
+mdtomd models
 ```
 
 **输出说明**
@@ -86,4 +101,19 @@ python3 -m mdtomd models
 
 ```bash
 python3 -m unittest discover -s tests -v
+```
+
+**CLI 发布**
+
+构建并检查产物：
+
+```bash
+./scripts/build_cli.sh
+```
+
+上传到 PyPI：
+
+```bash
+export TWINE_PASSWORD="pypi-***"
+./scripts/publish_cli.sh
 ```
