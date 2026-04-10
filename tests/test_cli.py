@@ -27,6 +27,15 @@ class CliTests(TestCase):
         self.assertIn("Spanish", output)
         self.assertIn("Chinese", output)
 
+    def test_setup_command_mentions_install_script(self) -> None:
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            exit_code = cli.main(["setup"])
+
+        output = buffer.getvalue()
+        self.assertEqual(exit_code, 0)
+        self.assertIn("./scripts/install_cli.sh", output)
+
     def test_translate_single_file_uses_default_suffix(self) -> None:
         with TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
