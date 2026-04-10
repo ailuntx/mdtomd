@@ -821,6 +821,8 @@ class CliTests(TestCase):
                                 str(config_path),
                                 "-i",
                                 str(input_path),
+                                "--timeout-sec",
+                                "240",
                             ]
                         )
 

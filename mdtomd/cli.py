@@ -633,6 +633,7 @@ def _add_estimate_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("-p", "--provider", help="Provider name, used to select default model and tokenizer")
     parser.add_argument("-m", "--model", help="Override model name for token estimation")
     parser.add_argument("--chunk-size", type=int, help="Override markdown chunk size")
+    parser.add_argument("--timeout-sec", type=float, help="Reserved for editor integration, accepted but not used in estimate")
     parser.add_argument("--max-tokens", type=int, help="Use this max_tokens as the default chunk size when --chunk-size is not set")
     parser.add_argument("--flat", action=argparse.BooleanOptionalAction, default=None, help="Use flat output structure in batch mode")
     parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")

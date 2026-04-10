@@ -2,7 +2,7 @@
   "name": "mdtomd-vscode",
   "displayName": "mdtomd",
   "description": "在 VS Code 里右键翻译 Markdown，支持先估算价格再选择模型",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "ailuntz",
   "icon": "media/icon.png",
   "license": "UNLICENSED",
@@ -68,6 +68,11 @@
             "type": "string",
             "default": "python3",
             "description": "回退到 python -m mdtomd 时使用的 Python 可执行文件。"
+          },
+          "mdtomd.autoUpdateCliOnStartup": {
+            "type": "boolean",
+            "default": true,
+            "description": "启动 VS Code 时自动检查并升级 mdtomd CLI。设置了 mdtomd.cliPath 时不会自动升级。"
           },
           "mdtomd.targetLanguage": {
             "type": "string",

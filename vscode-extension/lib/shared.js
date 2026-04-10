@@ -403,10 +403,10 @@ function getCliCandidates(settings, workspaceDir) {
   if (cliPath) {
     candidates.push({ command: cliPath, baseArgs: [] });
   } else {
-    candidates.push({ command: 'mdtomd', baseArgs: [] });
     for (const candidatePath of getLocalCliCandidates(workspaceDir)) {
       candidates.push({ command: candidatePath, baseArgs: [] });
     }
+    candidates.push({ command: 'mdtomd', baseArgs: [] });
     candidates.push({ command: pythonPath, baseArgs: ['-m', 'mdtomd'] });
     candidates.push({ command: 'python', baseArgs: ['-m', 'mdtomd'] });
     if (process.platform === 'win32') {
