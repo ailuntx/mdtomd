@@ -36,6 +36,25 @@ class ConfigTests(TestCase):
         self.assertEqual(config.llm.max_tokens, 8192)
         self.assertEqual(config.providers["deepseek"].max_tokens, 8192)
 
+    def test_load_config_allows_blank_translator_chunk_size(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            config_path = temp_path / "config.yaml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "translator:",
+                        "  chunk_size:",
+                        "  chunk_sleep_seconds: 0.5",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            config = load_config(str(config_path))
+
+        self.assertIsNone(config.translator.chunk_size)
+
     def test_load_config_parses_nested_yaml(self) -> None:
         with TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)

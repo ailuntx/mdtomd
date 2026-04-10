@@ -61,6 +61,7 @@ class EstimateCommandOptions:
     model: str
     resolved_model: str
     chunk_size: int
+    max_tokens: int
     flat: bool
     suffix: str
     force: bool
@@ -71,6 +72,8 @@ def resolve_translate_options(args: Any, config: AppConfig) -> TranslateCommandO
     provider_override = _get_provider_override(config, provider)
     arg_flat = getattr(args, "flat", None)
     arg_force = getattr(args, "force", None)
+    max_tokens = _resolve_max_tokens(args, provider_override, config)
+    chunk_size = _resolve_chunk_size(args, config, max_tokens)
 
     return TranslateCommandOptions(
         input=str(getattr(args, "input")),
@@ -82,10 +85,10 @@ def resolve_translate_options(args: Any, config: AppConfig) -> TranslateCommandO
         base_url=_arg_str(args, "base_url") or _env_str("MD_TRANSLATE_BASE_URL") or str(provider_override.get("base_url", "") or "") or config.llm.base_url,
         api_key=_arg_str(args, "api_key") or _env_str("MD_TRANSLATE_API_KEY") or str(provider_override.get("api_key", "") or "") or config.llm.api_key,
         api_key_env=_arg_str(args, "api_key_env") or _env_str("MD_TRANSLATE_API_KEY_ENV") or str(provider_override.get("api_key_env", "") or "") or config.llm.api_key_env,
-        codex_home=_env_str("MD_TRANSLATE_CODEX_HOME") or str(provider_override.get("codex_home", "") or "") or config.llm.codex_home,
-        auth_file=_env_str("MD_TRANSLATE_CODEX_AUTH_FILE") or str(provider_override.get("auth_file", "") or "") or config.llm.auth_file,
+        codex_home=_arg_str(args, "codex_home") or _env_str("MD_TRANSLATE_CODEX_HOME") or str(provider_override.get("codex_home", "") or "") or config.llm.codex_home,
+        auth_file=_arg_str(args, "auth_file") or _env_str("MD_TRANSLATE_CODEX_AUTH_FILE") or str(provider_override.get("auth_file", "") or "") or config.llm.auth_file,
         api_mode=_arg_str(args, "api_mode") or _env_str("MD_TRANSLATE_API_MODE") or str(provider_override.get("api_mode", "") or "") or config.llm.api_mode,
-        chunk_size=_coalesce(_arg_value(args, "chunk_size"), _env_int("MD_TRANSLATE_CHUNK_SIZE"), config.translator.chunk_size),
+        chunk_size=chunk_size,
         chunk_sleep_seconds=_coalesce(
             _arg_value(args, "chunk_sleep_seconds"),
             _env_float("MD_TRANSLATE_CHUNK_SLEEP_SECONDS"),
@@ -97,12 +100,7 @@ def resolve_translate_options(args: Any, config: AppConfig) -> TranslateCommandO
             provider_override.get("timeout_sec"),
             config.llm.timeout_sec,
         ),
-        max_tokens=_coalesce(
-            _arg_value(args, "max_tokens"),
-            _env_int("MD_TRANSLATE_MAX_TOKENS"),
-            provider_override.get("max_tokens"),
-            config.llm.max_tokens,
-        ),
+        max_tokens=max_tokens,
         temperature=_coalesce(
             _arg_value(args, "temperature"),
             _env_float("MD_TRANSLATE_TEMPERATURE"),
@@ -133,6 +131,8 @@ def resolve_estimate_options(args: Any, config: AppConfig) -> EstimateCommandOpt
     model = _arg_str(args, "model") or _env_str("MD_TRANSLATE_MODEL") or str(provider_override.get("model", "") or "") or config.llm.model
     arg_flat = getattr(args, "flat", None)
     arg_force = getattr(args, "force", None)
+    max_tokens = _resolve_max_tokens(args, provider_override, config)
+    chunk_size = _resolve_chunk_size(args, config, max_tokens)
 
     return EstimateCommandOptions(
         input=str(getattr(args, "input")),
@@ -142,7 +142,8 @@ def resolve_estimate_options(args: Any, config: AppConfig) -> EstimateCommandOpt
         provider=provider,
         model=model,
         resolved_model=resolve_estimate_model(provider, model),
-        chunk_size=_coalesce(_arg_value(args, "chunk_size"), _env_int("MD_TRANSLATE_CHUNK_SIZE"), config.translator.chunk_size),
+        chunk_size=chunk_size,
+        max_tokens=max_tokens,
         flat=arg_flat if arg_flat is not None else config.defaults.flat,
         suffix=_arg_str(args, "suffix") or _env_str("MD_TRANSLATE_SUFFIX") or config.defaults.suffix,
         force=arg_force if arg_force is not None else config.defaults.force,
@@ -177,6 +178,28 @@ def _get_provider_override(config: AppConfig, provider: str | None) -> dict[str,
     return provider_config.as_mapping() if provider_config is not None else {}
 
 
+def _resolve_max_tokens(args: Any, provider_override: dict[str, object], config: AppConfig) -> int:
+    return int(
+        _coalesce(
+            _arg_value(args, "max_tokens"),
+            _env_int("MD_TRANSLATE_MAX_TOKENS"),
+            provider_override.get("max_tokens"),
+            config.llm.max_tokens,
+        )
+    )
+
+
+def _resolve_chunk_size(args: Any, config: AppConfig, max_tokens: int) -> int:
+    return int(
+        _coalesce(
+            _arg_value(args, "chunk_size"),
+            _env_int("MD_TRANSLATE_CHUNK_SIZE"),
+            config.translator.chunk_size,
+            max_tokens,
+        )
+    )
+
+
 def _arg_value(args: Any, name: str) -> Any:
     return getattr(args, name, None)
 
@@ -209,4 +232,3 @@ def _coalesce(*values):
         if value is not None:
             return value
     return None
-

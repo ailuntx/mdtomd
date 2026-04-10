@@ -37,13 +37,14 @@ def resolve_single_output_path(
     suffix: str,
     language: str,
 ) -> Path:
+    effective_suffix = resolve_effective_suffix(suffix, language)
     if output:
         return Path(output)
 
     if output_dir:
-        return Path(output_dir) / build_output_name(input_path, suffix)
+        return Path(output_dir) / build_output_name(input_path, effective_suffix)
 
-    return input_path.with_name(build_output_name(input_path, resolve_effective_suffix(suffix, language)))
+    return input_path.with_name(build_output_name(input_path, effective_suffix))
 
 
 def resolve_glob_base_dir(pattern: str) -> Path:

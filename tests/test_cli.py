@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import sys
 from contextlib import redirect_stdout
@@ -154,25 +155,91 @@ class CliTests(TestCase):
             self.assertIn("跳过已是最新输出", buffer.getvalue())
             translate_file.assert_not_called()
 
-    def test_translate_batch_requires_output_dir(self) -> None:
-        buffer = io.StringIO()
-        with redirect_stdout(buffer):
-            exit_code = cli.main(
-                [
-                    "translate",
-                    "-i",
-                    "*.md",
-                    "-l",
-                    "Chinese",
-                    "--provider",
-                    "openai",
-                    "-k",
-                    "test-key",
-                ]
-            )
+    def test_translate_glob_defaults_output_dir_to_glob_base_dir(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            docs_dir = temp_path / "docs"
+            docs_dir.mkdir()
+            (docs_dir / "a.md").write_text("# A\n", encoding="utf-8")
+            empty_config = temp_path / "empty.yaml"
+            empty_config.write_text("", encoding="utf-8")
 
-        self.assertEqual(exit_code, 1)
-        self.assertIn("--output-dir", buffer.getvalue())
+            mocked_translator = mock.Mock()
+            mocked_translator.translate_files.return_value = []
+            mocked_client = mock.Mock()
+            mocked_client.config.provider = "openai"
+            mocked_client.config.model = "gpt-4.1-mini"
+
+            with mock.patch.object(cli, "create_llm_client", return_value=mocked_client):
+                with mock.patch.object(cli, "MarkdownTranslator", return_value=mocked_translator):
+                    exit_code = cli.main(
+                        [
+                            "translate",
+                            "--config",
+                            str(empty_config),
+                            "-i",
+                            str(docs_dir / "*.md"),
+                            "-l",
+                            "Chinese",
+                            "--provider",
+                            "openai",
+                            "-k",
+                            "test-key",
+                        ]
+                    )
+
+            self.assertEqual(exit_code, 0)
+            call_args = mocked_translator.translate_files.call_args.args
+            self.assertEqual(call_args[1], str(docs_dir.resolve()))
+
+    def test_translate_single_file_output_dir_uses_default_suffix(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / "sample.md"
+            output_dir = temp_path / "out"
+            input_path.write_text("# Title\n", encoding="utf-8")
+            empty_config = temp_path / "empty.yaml"
+            empty_config.write_text("", encoding="utf-8")
+
+            mocked_result = {
+                "inputPath": str(input_path),
+                "outputPath": str(output_dir / "sample_chinese.md"),
+                "targetLanguage": "Chinese",
+                "chunkCount": 1,
+                "sourceTokens": 12,
+                "requestInputTokens": 20,
+                "completionTokens": 10,
+                "totalTokens": 30,
+                "originalLength": 8,
+                "translatedLength": 8,
+            }
+
+            mocked_client = mock.Mock()
+            mocked_client.config.provider = "openai"
+            mocked_client.config.model = "gpt-4.1-mini"
+            with mock.patch.object(cli.MarkdownTranslator, "translate_file", return_value=mocked_result) as translate_file:
+                with mock.patch.object(cli, "create_llm_client", return_value=mocked_client):
+                    exit_code = cli.main(
+                        [
+                            "translate",
+                            "--config",
+                            str(empty_config),
+                            "-i",
+                            str(input_path),
+                            "-l",
+                            "Chinese",
+                            "-d",
+                            str(output_dir),
+                            "--provider",
+                            "openai",
+                            "-k",
+                            "test-key",
+                        ]
+                    )
+
+            self.assertEqual(exit_code, 0)
+            translate_args = translate_file.call_args.args
+            self.assertEqual(Path(translate_args[1]), output_dir / "sample_chinese.md")
 
     def test_translate_batch_defaults_to_incremental_skip(self) -> None:
         buffer = io.StringIO()
@@ -213,6 +280,52 @@ class CliTests(TestCase):
         self.assertTrue(options.skip_existing)
         self.assertTrue(options.skip_translated_inputs)
         self.assertIn("跳过: 1", buffer.getvalue())
+
+    def test_translate_batch_failure_prints_failed_items(self) -> None:
+        buffer = io.StringIO()
+        mocked_translator = mock.Mock()
+        mocked_translator.translate_files.return_value = [
+            {"inputPath": "a.md", "error": "boom", "success": False}
+        ]
+        mocked_client = mock.Mock()
+        mocked_client.config.provider = "openrouter"
+        mocked_client.config.model = "google/gemini-2.5-flash-lite"
+
+        args = SimpleNamespace(
+            config=None,
+            input="docs/*.md",
+            language="Chinese",
+            output=None,
+            output_dir="out",
+            api_key="test-key",
+            provider="auto",
+            model="",
+            base_url="",
+            api_key_env="",
+            api_mode="auto",
+            chunk_size=None,
+            chunk_sleep_seconds=None,
+            timeout_sec=None,
+            max_tokens=None,
+            temperature=None,
+            max_retries=None,
+            retry_base_delay=None,
+            flat=False,
+            suffix="zh",
+            force=False,
+            json=False,
+        )
+
+        with mock.patch.object(cli, "glob") as glob_module:
+            glob_module.glob.return_value = ["docs/a.md"]
+            with mock.patch.object(cli, "create_llm_client", return_value=mocked_client):
+                with mock.patch.object(cli, "MarkdownTranslator", return_value=mocked_translator):
+                    with redirect_stdout(buffer):
+                        exit_code = cli._handle_translate(args)
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("失败: 1", buffer.getvalue())
+        self.assertIn("a.md: boom", buffer.getvalue())
 
     def test_translate_directory_defaults_output_dir_to_input_dir(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -292,6 +405,47 @@ class CliTests(TestCase):
             self.assertEqual(exit_code, 0)
             call_args = estimate_files_tokens.call_args.args
             self.assertEqual(call_args[0], str(docs_dir.resolve() / "**/*"))
+            self.assertEqual(call_args[1], str(docs_dir.resolve()))
+
+    def test_estimate_glob_defaults_output_dir_to_glob_base_dir(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            docs_dir = temp_path / "docs"
+            docs_dir.mkdir()
+            (docs_dir / "a.md").write_text("# A\n", encoding="utf-8")
+            empty_config = temp_path / "empty.yaml"
+            empty_config.write_text("", encoding="utf-8")
+
+            mocked_estimate = BatchTokenEstimate(
+                file_count=1,
+                pending_file_count=1,
+                skipped_file_count=0,
+                chunk_count=1,
+                source_chars=10,
+                source_tokens=4,
+                request_input_tokens=8,
+                tokenizer="o200k_base",
+                approximate=False,
+                files=[FileTokenEstimate(str(docs_dir / "a.md"), str(docs_dir / "a_chinese.md"), chunk_count=1, source_chars=10, source_tokens=4, request_input_tokens=8)],
+            )
+
+            with mock.patch.object(cli.MarkdownTranslator, "estimate_files_tokens", return_value=mocked_estimate) as estimate_files_tokens:
+                exit_code = cli.main(
+                    [
+                        "estimate",
+                        "--config",
+                        str(empty_config),
+                        "-i",
+                        str(docs_dir / "*.md"),
+                        "-l",
+                        "Chinese",
+                        "--provider",
+                        "deepseek",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            call_args = estimate_files_tokens.call_args.args
             self.assertEqual(call_args[1], str(docs_dir.resolve()))
 
     def test_providers_command(self) -> None:
@@ -590,3 +744,183 @@ class CliTests(TestCase):
             self.assertIn("推荐模型费用:", output)
             self.assertIn("OpenAI GPT-4.1 Mini", output)
             self.assertIn("a.md chunks=5", output)
+
+    def test_shortcut_path_runs_estimate_then_translate(self) -> None:
+        call_order = []
+
+        def fake_estimate(args):
+            call_order.append(("estimate", args.command, args.input, args.provider, args.force))
+            return 0
+
+        def fake_translate(args):
+            call_order.append(("translate", args.command, args.input, args.provider, args.force))
+            return 0
+
+        buffer = io.StringIO()
+        with mock.patch.object(cli, "_handle_estimate", side_effect=fake_estimate):
+            with mock.patch.object(cli, "_handle_translate", side_effect=fake_translate):
+                with redirect_stdout(buffer):
+                    exit_code = cli.main(["docs/**/*.md", "--provider", "deepseek", "--force"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(
+            call_order,
+            [
+                ("estimate", "run", "docs/**/*.md", "deepseek", True),
+                ("translate", "run", "docs/**/*.md", "deepseek", True),
+            ],
+        )
+        self.assertIn("开始翻译:", buffer.getvalue())
+
+    def test_estimate_single_file_json_output(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / "sample.md"
+            input_path.write_text("# Title\n", encoding="utf-8")
+            config_path = temp_path / "config.yaml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "llm:",
+                        "  provider: openai",
+                        "defaults:",
+                        "  language: Chinese",
+                        "  suffix: zh",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            buffer = io.StringIO()
+            mocked_estimate = FileTokenEstimate(
+                input_path=str(input_path),
+                output_path=str(temp_path / "sample_zh.md"),
+                chunk_count=2,
+                source_chars=100,
+                source_tokens=40,
+                request_input_tokens=60,
+            )
+            mocked_markdown_estimate = mock.Mock(tokenizer="o200k_base", approximate=False)
+            with mock.patch.object(cli.MarkdownTranslator, "estimate_file_tokens", return_value=mocked_estimate):
+                with mock.patch.object(cli.MarkdownTranslator, "estimate_markdown_tokens", return_value=mocked_markdown_estimate):
+                    with redirect_stdout(buffer):
+                        exit_code = cli.main(
+                            [
+                                "estimate",
+                                "--json",
+                                "--config",
+                                str(config_path),
+                                "-i",
+                                str(input_path),
+                            ]
+                        )
+
+            payload = json.loads(buffer.getvalue())
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(payload["command"], "estimate")
+            self.assertEqual(payload["mode"], "single")
+            self.assertEqual(payload["summary"]["request_input_tokens"], 60)
+            self.assertEqual(payload["files"][0]["output_path"], str(temp_path / "sample_zh.md"))
+            self.assertTrue(payload["pricing"]["featured_models"])
+
+    def test_translate_single_file_json_output(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / "sample.md"
+            input_path.write_text("# Title\n", encoding="utf-8")
+            empty_config = temp_path / "empty.yaml"
+            empty_config.write_text("", encoding="utf-8")
+
+            mocked_result = {
+                "inputPath": str(input_path),
+                "outputPath": str(temp_path / "sample_chinese.md"),
+                "targetLanguage": "Chinese",
+                "chunkCount": 1,
+                "sourceTokens": 12,
+                "requestInputTokens": 20,
+                "completionTokens": 10,
+                "totalTokens": 30,
+                "originalLength": 8,
+                "translatedLength": 8,
+            }
+
+            buffer = io.StringIO()
+            mocked_client = mock.Mock()
+            mocked_client.config.provider = "openai"
+            mocked_client.config.model = "gpt-4.1-mini"
+            with mock.patch.object(cli.MarkdownTranslator, "translate_file", return_value=mocked_result):
+                with mock.patch.object(cli, "create_llm_client", return_value=mocked_client):
+                    with redirect_stdout(buffer):
+                        exit_code = cli.main(
+                            [
+                                "translate",
+                                "--json",
+                                "--config",
+                                str(empty_config),
+                                "-i",
+                                str(input_path),
+                                "-l",
+                                "Chinese",
+                                "--provider",
+                                "openai",
+                                "-k",
+                                "test-key",
+                            ]
+                        )
+
+            payload = json.loads(buffer.getvalue())
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(payload["command"], "translate")
+            self.assertEqual(payload["mode"], "single")
+            self.assertEqual(payload["summary"]["successful"], 1)
+            self.assertEqual(payload["results"][0]["completion_tokens"], 10)
+            self.assertEqual(payload["provider"], "openai")
+
+    def test_estimate_json_error_output_for_missing_input(self) -> None:
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            exit_code = cli.main(
+                [
+                    "estimate",
+                    "--json",
+                    "-i",
+                    "missing.md",
+                    "-l",
+                    "Chinese",
+                ]
+            )
+
+        payload = json.loads(buffer.getvalue())
+        self.assertEqual(exit_code, 1)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["stage"], "validation")
+        self.assertIn("missing.md", payload["error"]["display_message"])
+
+    def test_shortcut_path_json_output_combines_estimate_and_translate(self) -> None:
+        estimate_payload = {
+            "command": "estimate",
+            "ok": True,
+            "mode": "single",
+            "summary": {"request_input_tokens": 12},
+            "files": [],
+        }
+        translate_payload = {
+            "command": "translate",
+            "ok": True,
+            "mode": "single",
+            "summary": {"successful": 1, "file_count": 1, "skipped": 0, "failed": 0},
+            "results": [{"output_path": "a_zh.md"}],
+        }
+
+        buffer = io.StringIO()
+        with mock.patch.object(cli, "_execute_estimate", return_value=(0, estimate_payload)):
+            with mock.patch.object(cli, "_execute_translate", return_value=(0, translate_payload)):
+                with redirect_stdout(buffer):
+                    exit_code = cli.main(["docs/a.md", "--json"])
+
+        payload = json.loads(buffer.getvalue())
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["command"], "run")
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["estimate"]["summary"]["request_input_tokens"], 12)
+        self.assertEqual(payload["translate"]["results"][0]["output_path"], "a_zh.md")

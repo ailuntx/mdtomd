@@ -318,7 +318,7 @@ class MarkdownTranslator:
                 output_root=output_root,
                 base_dir=base_dir,
                 preserve_structure=translate_options.preserve_structure,
-                suffix=translate_options.suffix,
+                suffix=effective_suffix,
             )
 
             if translate_options.skip_existing and should_skip_existing(input_file, output_path):
@@ -417,7 +417,7 @@ class MarkdownTranslator:
                 output_root=output_root,
                 base_dir=base_dir,
                 preserve_structure=translate_options.preserve_structure,
-                suffix=translate_options.suffix,
+                suffix=effective_suffix,
             )
             if translate_options.skip_existing and should_skip_existing(input_file, output_path):
                 estimates.append(
