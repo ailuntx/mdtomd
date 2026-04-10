@@ -52,21 +52,8 @@ function loadConfigFile(configPath) {
   return loadSimpleYaml(fs.readFileSync(configPath, 'utf8'));
 }
 
-function resolveCliInstallSpec(extensionDir) {
-  const repoRoot = path.resolve(extensionDir, '..');
-  const pyprojectPath = path.join(repoRoot, 'pyproject.toml');
-  const cliModulePath = path.join(repoRoot, 'mdtomd', 'cli.py');
-  const installerPath = path.join(repoRoot, 'scripts', 'install_cli.sh');
-  if (fs.existsSync(pyprojectPath) && fs.existsSync(cliModulePath)) {
-    return {
-      editablePath: repoRoot,
-      installerPath: fs.existsSync(installerPath) ? installerPath : '',
-      packageName: 'mdtomd',
-    };
-  }
+function resolveCliInstallSpec() {
   return {
-    editablePath: '',
-    installerPath: '',
     packageName: 'mdtomd',
   };
 }

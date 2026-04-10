@@ -149,7 +149,7 @@ npm run package
 
 - 文件树右键翻译 Markdown 文件
 - 文件树右键翻译文件夹
-- 首次安装后自动检测 CLI，缺失时会优先尝试自动安装
+- 首次安装后自动检测 CLI，缺失时会从 PyPI 自动安装 `mdtomd`
 - 先调用 `estimate --json` 弹确认框
 - 从 `config.yaml` 已配模型里选择
 - 直接在 VS Code 设置面板里按“通用 + 厂商分组”填写模型参数，不需要手改 `settings.json`

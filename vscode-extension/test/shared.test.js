@@ -250,20 +250,9 @@ test('loadConfigFile parses nested config.yaml', () => {
   assert.equal(config.providers.deepseek.api_mode, 'chat_completions');
 });
 
-test('resolveCliInstallSpec prefers local repo when pyproject exists', () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mdtomd-vscode-install-'));
-  const extensionDir = path.join(tempRoot, 'vscode-extension');
-  fs.mkdirSync(path.join(tempRoot, 'mdtomd'), { recursive: true });
-  fs.mkdirSync(path.join(tempRoot, 'scripts'), { recursive: true });
-  fs.mkdirSync(extensionDir, { recursive: true });
-  fs.writeFileSync(path.join(tempRoot, 'pyproject.toml'), '[project]\nname="mdtomd"\n', 'utf8');
-  fs.writeFileSync(path.join(tempRoot, 'mdtomd', 'cli.py'), 'def main():\n    return 0\n', 'utf8');
-  fs.writeFileSync(path.join(tempRoot, 'scripts', 'install_cli.sh'), '#!/usr/bin/env bash\n', 'utf8');
-
-  const spec = resolveCliInstallSpec(extensionDir);
-  assert.equal(spec.editablePath, tempRoot);
-  assert.equal(spec.installerPath, path.join(tempRoot, 'scripts', 'install_cli.sh'));
-  assert.equal(spec.packageName, 'mdtomd');
+test('resolveCliInstallSpec uses PyPI package name', () => {
+  const spec = resolveCliInstallSpec('/tmp/anywhere');
+  assert.deepEqual(spec, { packageName: 'mdtomd' });
 });
 
 test('resolveTargetLanguage prefers config defaults then fallback', () => {

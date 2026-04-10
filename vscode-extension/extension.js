@@ -1,4 +1,5 @@
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 const vscode = require('vscode');
@@ -233,29 +234,9 @@ function activate(context) {
   async function installCli(settings, workspaceDir, { notifySuccess, silentFailure }) {
     outputChannel.appendLine('未检测到 mdtomd CLI，开始自动安装。');
 
-    const installSpec = resolveCliInstallSpec(__dirname);
-    if (installSpec.installerPath) {
-      outputChannel.appendLine(`> bash ${installSpec.installerPath}`);
-      const result = await spawnProcess('bash', [installSpec.installerPath], workspaceDir);
-      appendProcessOutput(outputChannel, result);
-      if (result.error) {
-        return handleCliInstallFailure(result.error.message || String(result.error), { silentFailure });
-      }
-      if (result.code === 0 && await hasWorkingCli(settings, workspaceDir)) {
-        if (notifySuccess) {
-          vscode.window.showInformationMessage('mdtomd CLI 已自动安装完成，现在可以直接翻译。');
-        }
-        return true;
-      }
-    }
-
+    const installSpec = resolveCliInstallSpec();
     for (const candidate of getPythonInstallCandidates(settings)) {
-      const args = ['-m', 'pip', 'install', '--user'];
-      if (installSpec.editablePath) {
-        args.push('-e', installSpec.editablePath);
-      } else {
-        args.push('-U', installSpec.packageName);
-      }
+      const args = ['-m', 'pip', 'install', '--user', '-U', installSpec.packageName];
       outputChannel.appendLine(`> ${formatCommand({ command: candidate.command, baseArgs: [] }, args)}  (cwd=${workspaceDir})`);
       const result = await spawnProcess(candidate.command, args, workspaceDir);
       appendProcessOutput(outputChannel, result);
@@ -263,6 +244,9 @@ function activate(context) {
         outputChannel.appendLine(`命令不存在: ${candidate.command}`);
         continue;
       }
+      if (result.code === 0) {
+        await tryLinkInstalledCli(candidate.command, workspaceDir, outputChannel);
+      }
       if (result.code === 0 && await hasWorkingCli(settings, workspaceDir)) {
         if (notifySuccess) {
           vscode.window.showInformationMessage('mdtomd CLI 已自动安装完成，现在可以直接翻译。');
@@ -271,7 +255,7 @@ function activate(context) {
       }
     }
 
-    return handleCliInstallFailure('自动安装 mdtomd CLI 失败，请先安装 Python 3，或手动执行 ./scripts/install_cli.sh。', { silentFailure });
+    return handleCliInstallFailure('自动安装 mdtomd CLI 失败，请先安装 Python 3，或手动执行: python3 -m pip install --user -U mdtomd', { silentFailure });
   }
 
   function handleCliInstallFailure(message, { silentFailure }) {
@@ -327,6 +311,100 @@ function activate(context) {
       seen.add(candidate.command);
       return true;
     });
+  }
+
+  async function tryLinkInstalledCli(pythonCommand, workspaceDir, outputChannel) {
+    if (process.platform === 'win32') {
+      return;
+    }
+
+    const scriptPath = await resolveInstalledCliScript(pythonCommand, workspaceDir);
+    if (!scriptPath) {
+      return;
+    }
+
+    const pathDirs = new Set(
+      String(process.env.PATH || '')
+        .split(path.delimiter)
+        .filter(Boolean)
+        .map((item) => path.resolve(expandHomeDir(item)))
+    );
+
+    for (const candidateDir of getCliLinkDirectories()) {
+      const resolvedDir = path.resolve(candidateDir);
+      if (!pathDirs.has(resolvedDir)) {
+        continue;
+      }
+      if (!(await ensureWritableDirectory(resolvedDir))) {
+        continue;
+      }
+
+      const linkPath = path.join(resolvedDir, 'mdtomd');
+      try {
+        await fs.promises.rm(linkPath, { force: true });
+        await fs.promises.symlink(scriptPath, linkPath);
+        outputChannel.appendLine(`已创建命令链接: ${linkPath} -> ${scriptPath}`);
+        return;
+      } catch (error) {
+        outputChannel.appendLine(`创建命令链接失败: ${linkPath} (${error instanceof Error ? error.message : String(error)})`);
+      }
+    }
+  }
+
+  async function resolveInstalledCliScript(pythonCommand, workspaceDir) {
+    const result = await spawnProcess(pythonCommand, ['-m', 'site', '--user-base'], workspaceDir);
+    if (result.error || result.code !== 0) {
+      return '';
+    }
+
+    const userBase = String(result.stdout || '').trim().split(/\r?\n/u).pop()?.trim() || '';
+    if (!userBase) {
+      return '';
+    }
+
+    const scriptPath = process.platform === 'win32'
+      ? path.join(userBase, 'Scripts', 'mdtomd.exe')
+      : path.join(userBase, 'bin', 'mdtomd');
+    try {
+      await fs.promises.access(scriptPath, fs.constants.X_OK);
+      return scriptPath;
+    } catch {
+      return '';
+    }
+  }
+
+  function getCliLinkDirectories() {
+    return [
+      '/opt/homebrew/bin',
+      '/usr/local/bin',
+      path.join(os.homedir(), '.local', 'bin'),
+      path.join(os.homedir(), 'bin'),
+    ];
+  }
+
+  function expandHomeDir(value) {
+    if (!value.startsWith('~')) {
+      return value;
+    }
+    if (value === '~') {
+      return os.homedir();
+    }
+    if (value.startsWith('~/')) {
+      return path.join(os.homedir(), value.slice(2));
+    }
+    return value;
+  }
+
+  async function ensureWritableDirectory(dirPath) {
+    if (dirPath.startsWith(os.homedir())) {
+      await fs.promises.mkdir(dirPath, { recursive: true });
+    }
+    try {
+      await fs.promises.access(dirPath, fs.constants.W_OK);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function resolveWorkspaceDir() {

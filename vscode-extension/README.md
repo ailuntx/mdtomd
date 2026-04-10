@@ -2,7 +2,7 @@
 
 一个很薄的 VS Code 壳，所有翻译逻辑都继续走 `mdtomd` CLI。
 
-插件首次安装后会检查 `mdtomd` CLI；如果本机还没有，会先尝试自动安装，再继续执行翻译。
+插件首次安装后会检查 `mdtomd` CLI；如果本机还没有，会先从 PyPI 执行 `python -m pip install --user -U mdtomd`，再继续执行翻译。
 
 ## 调试
 
