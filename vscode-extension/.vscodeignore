@@ -1,3 +1,5 @@
 test/**
 .vscode/**
 .gitignore
+media/readme-demo.gif
+使用说明.md

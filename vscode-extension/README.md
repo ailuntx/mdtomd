@@ -1,29 +1,52 @@
-# mdtomd VS Code Extension
+# mdtomd
 
-一个很薄的 VS Code 壳，所有翻译逻辑都继续走 `mdtomd` CLI。
+在 VS Code 里直接翻译 Markdown。
 
-插件首次安装后会检查 `mdtomd` CLI；如果本机还没有，会先从 PyPI 执行 `python -m pip install --user -U mdtomd`，再继续执行翻译。
+安装后，你可以右键 `.md`、`.markdown`、`.mdx` 文件或文件夹，先看待翻译文件数量、token 和价格估算，再选择模型开始翻译。
 
-## 调试
+## 适合什么场景
 
-直接用 VS Code 打开当前目录，按 `F5` 即可。
+- 想在 VS Code 里直接翻译单个 Markdown 文件
+- 想批量翻译一个文档目录
+- 想先比较不同模型价格，再决定用哪一个
+- 已经在项目里用 `config.yaml`，希望在编辑器里直接调用
 
-如果当前目录没有 `config.yaml`，插件会使用 VS Code 设置里的 `mdtomd.targetLanguage`，这是一个下拉项，默认是 `Chinese`。
+## 第一次使用
 
-插件流程：
+1. 安装扩展
+2. 打开 VS Code 设置，搜索 `mdtomd`
+3. 在你要使用的厂商分组里填写 `model` 和 `apiKey`
 
-1. 先调用 `estimate --json`
-2. 弹出待翻译文件信息和 10 个推荐模型价格参考
-3. 点“继续”后选择实际用于翻译的模型配置
-4. 再点“开始翻译”
+也可以不直接填写 `apiKey`，改为填写 `apiKeyEnv`，然后在系统环境变量里准备好对应的 key。
 
-## 厂商配置
+如果当前项目里已经有 `config.yaml`，扩展也会读取里面的 `providers` 配置。
 
-直接在 VS Code 设置面板里搜 `mdtomd` 即可，设置页现在会按“通用 + 各厂商”分组显示，不需要手改 `settings.json`。
+## 使用方式
 
-先配置好你要用的厂商 `model` 和 `apiKey`，或者配置 `apiKeyEnv` 并确保对应环境变量真实存在。没配置可用 key 的模型，不会出现在“继续”后的选择列表里。
+1. 在资源管理器里右键 Markdown 文件或文件夹
+2. 选择 `mdtomd: 翻译 Markdown`
+3. 先查看本次翻译的文件数、token 和价格参考
+4. 点“继续”后，从已配置可用 key 的模型里选择一个
+5. 点“开始翻译”
 
-当前已内置这些厂商分组：
+## 你会看到什么
+
+- 翻译前估算：文件数、分块数、token、推荐模型价格参考
+- 模型选择：只显示已经配置好可用 key 的模型
+- 翻译结果：状态栏显示完成情况，失败时可在输出面板查看详情
+
+## 配置说明
+
+扩展设置页已经按厂商分组，普通使用只需要关心这些字段：
+
+- `model`
+- `apiKey` 或 `apiKeyEnv`
+- `baseUrl`
+- `maxTokens`
+
+如果没有单独设置 `chunk_size`，CLI 会默认使用当前模型的 `max_tokens` 作为分块大小。
+
+当前支持这些厂商分组：
 
 - DeepSeek
 - MiniMax
@@ -37,29 +60,38 @@
 - Alibaba
 - OpenAI Compatible
 
-普通厂商都可以直接填写：
+## 自动安装 CLI
 
-- `model`
-- `baseUrl`
-- `apiKey`
-- `apiKeyEnv`
-- `apiMode`
-- `maxTokens`
+扩展会自动检查本机是否已安装 `mdtomd` CLI。
 
-如果没有单独指定 `chunk_size`，CLI 会默认用当前模型的 `max_tokens` 作为分块大小。
-
-其中 OpenAI Codex 额外支持：
-
-- `codexHome`
-- `authFile`
-
-如果当前目录已有 `config.yaml`，插件也会继续读取其中的 `providers` 配置。
-
-## 打包
+如果没有安装，会自动执行：
 
 ```bash
-cd vscode-extension
-npm run package
+python -m pip install --user -U mdtomd
 ```
 
-会在当前目录生成 `mdtomd-vscode.vsix`。
+安装完成后会继续执行翻译。
+
+## 常见问题
+
+### 为什么“继续”后看不到模型列表？
+
+因为还没有配置可用模型。请先在 VS Code 设置里填写：
+
+- `model`
+- `apiKey`
+
+或者填写：
+
+- `model`
+- `apiKeyEnv`
+
+并确保对应环境变量真实存在。
+
+### 没有 `config.yaml` 也能用吗？
+
+可以。没有项目配置时，扩展会直接使用 VS Code 设置里的模型参数和目标语言。
+
+### 默认目标语言是什么？
+
+默认是 `Chinese`，可以在设置里的 `mdtomd.targetLanguage` 下拉框里修改。
