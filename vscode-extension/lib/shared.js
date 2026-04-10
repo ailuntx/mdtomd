@@ -66,9 +66,7 @@ function buildConfigProfiles(rawConfig, configPath) {
   const defaultModel = readString(llm.model) || readString(defaultOverride.model) || '-';
 
   const profiles = [];
-  const hasUsefulDefault = Boolean(configPath || defaultProvider !== 'auto' || defaultModel !== '-');
-  if (hasUsefulDefault) {
-    profiles.push({
+  const defaultProfile = {
       id: 'default',
       label: '当前默认配置',
       description: `${defaultProvider} / ${defaultModel}`,
@@ -76,18 +74,25 @@ function buildConfigProfiles(rawConfig, configPath) {
       useDefaults: true,
       provider: defaultProvider,
       model: defaultModel === '-' ? '' : defaultModel,
+      apiKey: readString(llm.api_key) || readString(defaultOverride.api_key),
+      apiKeyEnv: readString(llm.api_key_env) || readString(defaultOverride.api_key_env),
+      codexHome: readString(llm.codex_home) || readString(defaultOverride.codex_home),
+      authFile: readString(llm.auth_file) || readString(defaultOverride.auth_file),
       source: 'config-default',
-    });
+    };
+  const hasUsefulDefault = Boolean(configPath || defaultProvider !== 'auto' || defaultModel !== '-');
+  if (hasUsefulDefault && isUsableProfile(defaultProfile)) {
+    profiles.push(defaultProfile);
   }
 
   for (const [provider, value] of Object.entries(providers)) {
     const override = asObject(value);
-    const hasUsefulValue = ['model', 'base_url', 'api_key', 'api_key_env', 'api_mode'].some((key) => readString(override[key]));
+    const hasUsefulValue = ['model', 'base_url', 'api_key', 'api_key_env', 'api_mode', 'codex_home', 'auth_file'].some((key) => readString(override[key]));
     if (!hasUsefulValue) {
       continue;
     }
 
-    profiles.push({
+    const profile = {
       id: `provider:${provider}`,
       label: `${provider} / ${readString(override.model) || '-'}`,
       description: 'config.providers',
@@ -98,9 +103,20 @@ function buildConfigProfiles(rawConfig, configPath) {
       baseUrl: readString(override.base_url),
       apiKey: readString(override.api_key),
       apiKeyEnv: readString(override.api_key_env),
+      codexHome: readString(override.codex_home),
+      authFile: readString(override.auth_file),
       apiMode: readString(override.api_mode),
       source: 'config-provider',
-    });
+    };
+    const isDuplicateDefault = profiles.some(
+      (item) =>
+        item.source === 'config-default'
+        && readString(item.provider) === readString(profile.provider)
+        && readString(item.model) === readString(profile.model)
+    );
+    if (isUsableProfile(profile) && !isDuplicateDefault) {
+      profiles.push(profile);
+    }
   }
 
   return profiles;
@@ -116,11 +132,7 @@ function buildSettingsProfiles(rawProfiles) {
     const item = asObject(value);
     const provider = readString(providerName);
     const model = readString(item.model);
-    if (!provider || !model) {
-      continue;
-    }
-
-    profiles.push({
+    const profile = {
       id: `settings:${provider}`,
       label: `${provider} / ${model}`,
       description: `${provider} / ${model}`,
@@ -143,7 +155,12 @@ function buildSettingsProfiles(rawProfiles) {
       apiMode: readString(item.apiMode ?? item.api_mode),
       maxTokens: readString(item.maxTokens ?? item.max_tokens),
       source: 'settings',
-    });
+    };
+    if (!provider || !model || !isUsableProfile(profile)) {
+      continue;
+    }
+
+    profiles.push(profile);
   }
   return profiles;
 }
@@ -156,13 +173,13 @@ function buildDirectSettingsProfiles(settings) {
       continue;
     }
 
-    profiles.push({
+    const profile = {
       id: `direct:${definition.key}`,
       label: `${definition.label} / ${model}`,
       description: `${definition.provider} / ${model}`,
       detail: buildProviderDetail({
         base_url: settings.get(`${definition.key}.baseUrl`),
-        api_key_env: settings.get(`${definition.key}.apiKeyEnv`),
+        api_key_env: getConfiguredSetting(settings, `${definition.key}.apiKeyEnv`),
         api_mode: settings.get(`${definition.key}.apiMode`),
         codex_home: settings.get(`${definition.key}.codexHome`),
         auth_file: settings.get(`${definition.key}.authFile`),
@@ -172,14 +189,17 @@ function buildDirectSettingsProfiles(settings) {
       provider: definition.provider,
       model,
       baseUrl: readString(settings.get(`${definition.key}.baseUrl`)),
-      apiKey: readString(settings.get(`${definition.key}.apiKey`)),
-      apiKeyEnv: readString(settings.get(`${definition.key}.apiKeyEnv`)),
-      codexHome: readString(settings.get(`${definition.key}.codexHome`)),
-      authFile: readString(settings.get(`${definition.key}.authFile`)),
+      apiKey: getConfiguredSetting(settings, `${definition.key}.apiKey`),
+      apiKeyEnv: getConfiguredSetting(settings, `${definition.key}.apiKeyEnv`),
+      codexHome: getConfiguredSetting(settings, `${definition.key}.codexHome`),
+      authFile: getConfiguredSetting(settings, `${definition.key}.authFile`),
       apiMode: readString(settings.get(`${definition.key}.apiMode`)),
       maxTokens: readString(settings.get(`${definition.key}.maxTokens`)),
       source: 'settings-direct',
-    });
+    };
+    if (isUsableProfile(profile)) {
+      profiles.push(profile);
+    }
   }
   return profiles;
 }
@@ -286,6 +306,8 @@ function buildEstimateMessage(targetPath, payload) {
   }
 
   lines.push('');
+  lines.push('请先在 VS Code 插件设置里配置模型和 key。');
+  lines.push('下一步只会显示已配置可用 key 的模型。');
   lines.push('点“继续”后再选择翻译模型。');
   return lines.join('\n');
 }
@@ -443,6 +465,30 @@ function safeReadDir(dirPath) {
   } catch {
     return [];
   }
+}
+
+function getConfiguredSetting(settings, key) {
+  if (!settings || typeof settings.inspect !== 'function') {
+    return readString(settings?.get?.(key));
+  }
+  const inspected = settings.inspect(key);
+  if (!inspected) {
+    return '';
+  }
+  return readString(
+    inspected.workspaceFolderValue
+    ?? inspected.workspaceValue
+    ?? inspected.globalValue
+  );
+}
+
+function isUsableProfile(profile) {
+  const inlineKey = readString(profile.apiKey);
+  const envName = readString(profile.apiKeyEnv);
+  const envValue = envName ? readString(process.env[envName]) : '';
+  const authFile = readString(profile.authFile);
+  const codexHome = readString(profile.codexHome);
+  return Boolean(inlineKey || envValue || authFile || codexHome);
 }
 
 function asObject(value) {

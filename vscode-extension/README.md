@@ -21,6 +21,8 @@
 
 直接在 VS Code 设置面板里搜 `mdtomd` 即可，设置页现在会按“通用 + 各厂商”分组显示，不需要手改 `settings.json`。
 
+先配置好你要用的厂商 `model` 和 `apiKey`，或者配置 `apiKeyEnv` 并确保对应环境变量真实存在。没配置可用 key 的模型，不会出现在“继续”后的选择列表里。
+
 当前已内置这些厂商分组：
 
 - DeepSeek
@@ -56,7 +58,7 @@
 ## 打包
 
 ```bash
-cd /Volumes/usb_main/home/template_paper/mdtomd/vscode-extension
+cd vscode-extension
 npm run package
 ```
 

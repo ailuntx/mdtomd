@@ -2,7 +2,7 @@
   "name": "mdtomd-vscode",
   "displayName": "mdtomd",
   "description": "用 mdtomd CLI 翻译 Markdown 的 VS Code 薄壳",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "ailuntz",
   "icon": "media/icon.png",
   "license": "UNLICENSED",

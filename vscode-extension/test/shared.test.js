@@ -19,6 +19,92 @@ const {
 } = require('../lib/shared');
 
 test('buildConfigProfiles returns default and provider profiles', () => {
+  process.env.TEST_DEEPSEEK_KEY = 'x';
+  try {
+    const profiles = buildConfigProfiles(
+      {
+        llm: {
+          provider: 'deepseek',
+          api_key_env: 'TEST_DEEPSEEK_KEY',
+        },
+        providers: {
+          deepseek: {
+            model: 'deepseek-chat',
+            api_key_env: 'TEST_DEEPSEEK_KEY',
+          },
+          openai: {
+            model: 'gpt-4.1-mini',
+            api_key: 'inline-key',
+            base_url: 'https://api.openai.com/v1',
+          },
+        },
+      },
+      '/tmp/config.yaml'
+    );
+
+    assert.equal(profiles[0].label, '当前默认配置');
+    assert.equal(profiles[0].useDefaults, true);
+    assert.equal(profiles.length, 2);
+    assert.equal(profiles[1].provider, 'openai');
+  } finally {
+    delete process.env.TEST_DEEPSEEK_KEY;
+  }
+});
+
+test('buildConfigProfiles skips useless auto default without config', () => {
+  const profiles = buildConfigProfiles({}, null);
+  assert.equal(profiles.length, 0);
+});
+
+test('buildSettingsProfiles parses preset profiles from settings', () => {
+  const profiles = buildSettingsProfiles({
+    deepseek: {
+      model: 'deepseek-chat',
+      baseUrl: 'https://api.deepseek.com/v1',
+      apiKey: 'inline-key',
+    },
+  });
+
+  assert.equal(profiles.length, 1);
+  assert.equal(profiles[0].label, 'deepseek / deepseek-chat');
+  assert.equal(profiles[0].provider, 'deepseek');
+  assert.equal(profiles[0].apiKey, 'inline-key');
+});
+
+test('buildDirectSettingsProfiles parses direct provider settings', () => {
+  process.env.DEEPSEEK_API_KEY = 'x';
+  const values = {
+    'deepseek.model': 'deepseek-chat',
+    'deepseek.baseUrl': 'https://api.deepseek.com/v1',
+    'deepseek.apiKeyEnv': 'DEEPSEEK_API_KEY',
+    'deepseek.apiMode': 'chat_completions',
+    'deepseek.maxTokens': 8192,
+  };
+  const settings = {
+    get(name) {
+      return values[name];
+    },
+    inspect(name) {
+      if (name === 'deepseek.apiKeyEnv') {
+        return { globalValue: values[name] };
+      }
+      return {};
+    },
+  };
+
+  try {
+    const profiles = buildDirectSettingsProfiles(settings);
+    assert.equal(profiles.length, 1);
+    assert.equal(profiles[0].label, 'DeepSeek / deepseek-chat');
+    assert.equal(profiles[0].provider, 'deepseek');
+    assert.equal(profiles[0].apiKeyEnv, 'DEEPSEEK_API_KEY');
+    assert.equal(profiles[0].maxTokens, '8192');
+  } finally {
+    delete process.env.DEEPSEEK_API_KEY;
+  }
+});
+
+test('buildConfigProfiles skips provider templates without usable key', () => {
   const profiles = buildConfigProfiles(
     {
       llm: {
@@ -37,33 +123,10 @@ test('buildConfigProfiles returns default and provider profiles', () => {
     '/tmp/config.yaml'
   );
 
-  assert.equal(profiles[0].label, '当前默认配置');
-  assert.equal(profiles[0].useDefaults, true);
-  assert.equal(profiles[1].provider, 'deepseek');
-  assert.equal(profiles[2].provider, 'openai');
-});
-
-test('buildConfigProfiles skips useless auto default without config', () => {
-  const profiles = buildConfigProfiles({}, null);
   assert.equal(profiles.length, 0);
 });
 
-test('buildSettingsProfiles parses preset profiles from settings', () => {
-  const profiles = buildSettingsProfiles({
-    deepseek: {
-      model: 'deepseek-chat',
-      baseUrl: 'https://api.deepseek.com/v1',
-      apiKeyEnv: 'DEEPSEEK_API_KEY',
-    },
-  });
-
-  assert.equal(profiles.length, 1);
-  assert.equal(profiles[0].label, 'deepseek / deepseek-chat');
-  assert.equal(profiles[0].provider, 'deepseek');
-  assert.equal(profiles[0].apiKeyEnv, 'DEEPSEEK_API_KEY');
-});
-
-test('buildDirectSettingsProfiles parses direct provider settings', () => {
+test('buildDirectSettingsProfiles ignores default api key env placeholders', () => {
   const values = {
     'deepseek.model': 'deepseek-chat',
     'deepseek.baseUrl': 'https://api.deepseek.com/v1',
@@ -75,14 +138,13 @@ test('buildDirectSettingsProfiles parses direct provider settings', () => {
     get(name) {
       return values[name];
     },
+    inspect() {
+      return {};
+    },
   };
 
   const profiles = buildDirectSettingsProfiles(settings);
-  assert.equal(profiles.length, 1);
-  assert.equal(profiles[0].label, 'DeepSeek / deepseek-chat');
-  assert.equal(profiles[0].provider, 'deepseek');
-  assert.equal(profiles[0].apiKeyEnv, 'DEEPSEEK_API_KEY');
-  assert.equal(profiles[0].maxTokens, '8192');
+  assert.equal(profiles.length, 0);
 });
 
 test('buildCliArgs keeps config and explicit profile flags', () => {
@@ -224,6 +286,7 @@ test('buildEstimateMessage includes featured model prices', () => {
 
   assert.match(message, /推荐模型价格参考/);
   assert.match(message, /OpenAI GPT-4\.1 Mini \| total≈0\.000123 USD/);
+  assert.match(message, /请先在 VS Code 插件设置里配置模型和 key/);
 });
 
 test('loadConfigFile parses nested config.yaml', () => {

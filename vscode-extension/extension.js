@@ -133,9 +133,23 @@ function activate(context) {
       ...buildConfigProfiles(config, configPath),
       ...buildDirectSettingsProfiles(settings),
       ...buildSettingsProfiles(settings.get('providers')),
-      buildManualProfile(),
     ];
-    const profile = await pickProfile(profiles, estimate);
+    if (profiles.length === 0) {
+      const action = await vscode.window.showWarningMessage(
+        '还没有可用的翻译模型。请先在 VS Code 插件设置里填写 model，并配置 apiKey 或可用的 apiKeyEnv。',
+        '打开设置',
+        '手动输入'
+      );
+      if (action === '打开设置') {
+        await vscode.commands.executeCommand('workbench.action.openSettings', 'mdtomd');
+        return;
+      }
+      if (action !== '手动输入') {
+        return;
+      }
+    }
+
+    const profile = await pickProfile([...profiles, buildManualProfile()], estimate);
     if (!profile) {
       return;
     }
