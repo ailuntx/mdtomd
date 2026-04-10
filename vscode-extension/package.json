@@ -2,10 +2,16 @@
   "name": "mdtomd-vscode",
   "displayName": "mdtomd",
   "description": "在 VS Code 里右键翻译 Markdown，支持先估算价格再选择模型",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "ailuntz",
   "icon": "media/icon.png",
   "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ailuntx/mdtomd.git",
+    "directory": "vscode-extension"
+  },
+  "homepage": "https://github.com/ailuntx/mdtomd/tree/main/vscode-extension",
   "keywords": [
     "markdown",
     "mdx",

@@ -4,6 +4,15 @@
 
 安装后，你可以右键 `.md`、`.markdown`、`.mdx` 文件或文件夹，先看待翻译文件数量、token 和价格估算，再选择模型开始翻译。
 
+![操作演示](https://raw.githubusercontent.com/ailuntx/mdtomd/main/vscode-extension/media/readme-demo.gif)
+
+## 为什么适合在 VS Code 里用
+
+- 不用切到命令行
+- 先看价格估算，再决定用哪个模型
+- 文件和文件夹都能直接右键翻译
+- 已有 `config.yaml` 的项目可以直接复用
+
 ## 适合什么场景
 
 - 想在 VS Code 里直接翻译单个 Markdown 文件
