@@ -18,6 +18,9 @@ const DIRECT_PROVIDER_DEFINITIONS = [
   { key: 'alibaba', provider: 'alibaba', label: 'Alibaba' },
   { key: 'openaiCompatible', provider: 'openai-compatible', label: 'OpenAI Compatible' },
 ];
+const PROVIDER_LABELS = Object.fromEntries(
+  DIRECT_PROVIDER_DEFINITIONS.map((item) => [item.provider, item.label])
+);
 const DEFAULT_LANGUAGE_SUFFIXES = {
   Spanish: 'es',
   French: 'fr',
@@ -256,6 +259,20 @@ function buildManualProfile() {
     useDefaults: false,
     source: 'manual',
   };
+}
+
+function formatProfileRunLabel(profile) {
+  if (!profile) {
+    return '';
+  }
+  const provider = readString(profile.provider);
+  const model = readString(profile.model);
+  const providerLabel = PROVIDER_LABELS[provider] || provider || readString(profile.label) || 'Auto';
+  const baseLabel = model ? `${providerLabel} / ${model}` : providerLabel;
+  if (profile.isManual || readString(profile.source) === 'manual' || readString(profile.id).startsWith('manual')) {
+    return `临时配置 ${baseLabel}`.trim();
+  }
+  return baseLabel;
 }
 
 function resolveTargetLanguage(rawConfig, fallbackLanguage) {
@@ -647,6 +664,7 @@ module.exports = {
   buildDirectSettingsProfiles,
   buildEstimateMessage,
   buildManualProfile,
+  formatProfileRunLabel,
   buildSettingsProfiles,
   buildStartTranslateMessage,
   findPriceItem,

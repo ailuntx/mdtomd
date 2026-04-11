@@ -13,6 +13,7 @@ const {
   buildStartTranslateMessage,
   findPriceItem,
   findNearestConfigPath,
+  formatProfileRunLabel,
   loadConfigFile,
   resolveCliInstallSpec,
   resolveTargetLanguage,
@@ -284,6 +285,27 @@ test('resolveTranslatedSuffixAliases returns normalized aliases for target langu
   );
 
   assert.deepEqual(aliases, ['cn', 'chinese']);
+});
+
+test('formatProfileRunLabel returns friendly provider label', () => {
+  const label = formatProfileRunLabel({
+    provider: 'openai-codex',
+    model: 'gpt-5.4-mini',
+    source: 'settings-direct',
+  });
+
+  assert.equal(label, 'OpenAI Codex / gpt-5.4-mini');
+});
+
+test('formatProfileRunLabel marks manual profile explicitly', () => {
+  const label = formatProfileRunLabel({
+    id: 'manual:filled',
+    provider: 'deepseek',
+    model: 'deepseek-chat',
+    source: 'manual',
+  });
+
+  assert.equal(label, '临时配置 DeepSeek / deepseek-chat');
 });
 
 test('findNearestConfigPath walks upward to workspace root', () => {

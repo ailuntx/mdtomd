@@ -11,6 +11,7 @@ const {
   buildManualProfile,
   buildSettingsProfiles,
   buildStartTranslateMessage,
+  formatProfileRunLabel,
   findPriceItem,
   findNearestConfigPath,
   formatCommand,
@@ -202,11 +203,12 @@ function activate(context) {
       return;
     }
 
-    showStatus(`$(sync~spin) mdtomd ${targetLabel} 0/${selectedPendingCount}`);
+    const progressLabel = formatProfileRunLabel(profile);
+    showStatus(`$(sync~spin) mdtomd ${targetLabel} | ${progressLabel} 0/${selectedPendingCount}`);
     const translateResult = await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
-        title: `mdtomd 翻译中: ${targetLabel}`,
+        title: `mdtomd 翻译中: ${targetLabel} | ${progressLabel}`,
         cancellable: true,
       },
       async (_, cancellationToken) =>
@@ -226,14 +228,14 @@ function activate(context) {
 
     if (!ensureCliSuccess('translate', translateResult, outputChannel)) {
       if (translateResult.payload?.error?.stage === 'cancelled') {
-        showStatus(`$(circle-slash) mdtomd 已取消 ${targetLabel}`, 8000);
+        showStatus(`$(circle-slash) mdtomd 已取消 ${targetLabel} | ${progressLabel}`, 8000);
       }
       return;
     }
 
     const translate = translateResult.payload;
     const summary = summarizeTranslation(translate);
-    showStatus(`$(check) mdtomd ${targetLabel} ${summary.completed}/${summary.fileCount}`, 8000);
+    showStatus(`$(check) mdtomd ${targetLabel} | ${progressLabel} ${summary.completed}/${summary.fileCount}`, 8000);
 
     if (summary.failed > 0) {
       for (const item of translate.results || []) {
