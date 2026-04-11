@@ -16,6 +16,7 @@ from .paths import (
     is_translated_input,
     resolve_directory_input_pattern,
     resolve_effective_suffix,
+    resolve_existing_output_path,
     resolve_glob_base_dir,
     resolve_single_output_path,
     should_skip_existing,
@@ -57,6 +58,7 @@ OPTIONS_WITH_VALUE = {
     "--max-retries",
     "--retry-base-delay",
     "--suffix",
+    "--translated-suffix-aliases",
 }
 BOOLEAN_OPTIONS = {"--flat", "--no-flat", "--force", "--no-force"}
 
@@ -198,6 +200,7 @@ def _execute_translate(args: argparse.Namespace) -> tuple[int, dict]:
                     progress_callback=None if _json_enabled(args) else batch_progress,
                     preserve_structure=not options.flat,
                     suffix=options.suffix,
+                    translated_suffix_aliases=options.translated_suffix_aliases,
                     skip_existing=not options.force,
                 ),
                 chunk_size=options.chunk_size,
@@ -235,7 +238,11 @@ def _execute_translate(args: argparse.Namespace) -> tuple[int, dict]:
             )
 
         effective_suffix = resolve_effective_suffix(options.suffix, options.language)
-        if not options.force and is_translated_input(input_path, effective_suffix):
+        if not options.force and is_translated_input(
+            input_path,
+            effective_suffix,
+            options.translated_suffix_aliases,
+        ):
             payload = _build_translate_payload(
                 config=config,
                 options=options,
@@ -263,7 +270,16 @@ def _execute_translate(args: argparse.Namespace) -> tuple[int, dict]:
             suffix=options.suffix,
             language=options.language,
         )
-        if not options.force and should_skip_existing(input_path, output_path):
+        existing_output_path = resolve_existing_output_path(
+            input_path,
+            output_path,
+            options.translated_suffix_aliases,
+        )
+        if not options.force and should_skip_existing(
+            input_path,
+            output_path,
+            options.translated_suffix_aliases,
+        ):
             payload = _build_translate_payload(
                 config=config,
                 options=options,
@@ -275,7 +291,7 @@ def _execute_translate(args: argparse.Namespace) -> tuple[int, dict]:
                 results=[
                     {
                         "inputPath": str(input_path),
-                        "outputPath": str(output_path),
+                        "outputPath": str(existing_output_path or output_path),
                         "success": True,
                         "skipped": True,
                         "reason": "up-to-date",
@@ -356,6 +372,7 @@ def _execute_estimate(args: argparse.Namespace) -> tuple[int, dict]:
                 options=TranslateFilesOptions(
                     preserve_structure=not options.flat,
                     suffix=options.suffix,
+                    translated_suffix_aliases=options.translated_suffix_aliases,
                     skip_existing=not options.force,
                 ),
                 chunk_size=options.chunk_size,
@@ -401,7 +418,11 @@ def _execute_estimate(args: argparse.Namespace) -> tuple[int, dict]:
             )
 
         effective_suffix = resolve_effective_suffix(options.suffix, options.language)
-        if not options.force and is_translated_input(input_path, effective_suffix):
+        if not options.force and is_translated_input(
+            input_path,
+            effective_suffix,
+            options.translated_suffix_aliases,
+        ):
             payload = _build_estimate_payload(
                 config=config,
                 options=options,
@@ -439,7 +460,16 @@ def _execute_estimate(args: argparse.Namespace) -> tuple[int, dict]:
             suffix=options.suffix,
             language=options.language,
         )
-        if not options.force and should_skip_existing(input_path, output_path):
+        existing_output_path = resolve_existing_output_path(
+            input_path,
+            output_path,
+            options.translated_suffix_aliases,
+        )
+        if not options.force and should_skip_existing(
+            input_path,
+            output_path,
+            options.translated_suffix_aliases,
+        ):
             payload = _build_estimate_payload(
                 config=config,
                 options=options,
@@ -458,7 +488,7 @@ def _execute_estimate(args: argparse.Namespace) -> tuple[int, dict]:
                 files=[
                     {
                         "input_path": str(input_path),
-                        "output_path": str(output_path),
+                        "output_path": str(existing_output_path or output_path),
                         "chunk_count": 0,
                         "source_chars": 0,
                         "source_tokens": 0,
@@ -621,6 +651,7 @@ def _add_translate_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--flat", action=argparse.BooleanOptionalAction, default=None, help="Use flat output structure in batch mode")
     parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
     parser.add_argument("--suffix", help="Custom suffix for output files")
+    parser.add_argument("--translated-suffix-aliases", help="Comma-separated translated suffix aliases treated as existing translations, such as cn,chinese")
     parser.add_argument("--force", action=argparse.BooleanOptionalAction, default=None, help="Ignore incremental skip and re-translate existing outputs")
 
 
@@ -638,6 +669,7 @@ def _add_estimate_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--flat", action=argparse.BooleanOptionalAction, default=None, help="Use flat output structure in batch mode")
     parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
     parser.add_argument("--suffix", help="Custom suffix for output files")
+    parser.add_argument("--translated-suffix-aliases", help="Comma-separated translated suffix aliases treated as existing translations, such as cn,chinese")
     parser.add_argument("--force", action=argparse.BooleanOptionalAction, default=None, help="Ignore incremental skip and estimate all matched source files")
 
 

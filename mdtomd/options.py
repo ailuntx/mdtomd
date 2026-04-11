@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -31,6 +32,7 @@ class TranslateCommandOptions:
     retry_base_delay: float
     flat: bool
     suffix: str
+    translated_suffix_aliases: tuple[str, ...]
     force: bool
 
     def llm_kwargs(self) -> dict[str, object]:
@@ -64,6 +66,7 @@ class EstimateCommandOptions:
     max_tokens: int
     flat: bool
     suffix: str
+    translated_suffix_aliases: tuple[str, ...]
     force: bool
 
 
@@ -121,6 +124,7 @@ def resolve_translate_options(args: Any, config: AppConfig) -> TranslateCommandO
         ),
         flat=arg_flat if arg_flat is not None else config.defaults.flat,
         suffix=_arg_str(args, "suffix") or _env_str("MD_TRANSLATE_SUFFIX") or config.defaults.suffix,
+        translated_suffix_aliases=_parse_suffix_aliases(_arg_value(args, "translated_suffix_aliases")) or _parse_suffix_aliases(_env_str("MD_TRANSLATE_SUFFIX_ALIASES")),
         force=arg_force if arg_force is not None else config.defaults.force,
     )
 
@@ -146,6 +150,7 @@ def resolve_estimate_options(args: Any, config: AppConfig) -> EstimateCommandOpt
         max_tokens=max_tokens,
         flat=arg_flat if arg_flat is not None else config.defaults.flat,
         suffix=_arg_str(args, "suffix") or _env_str("MD_TRANSLATE_SUFFIX") or config.defaults.suffix,
+        translated_suffix_aliases=_parse_suffix_aliases(_arg_value(args, "translated_suffix_aliases")) or _parse_suffix_aliases(_env_str("MD_TRANSLATE_SUFFIX_ALIASES")),
         force=arg_force if arg_force is not None else config.defaults.force,
     )
 
@@ -232,3 +237,21 @@ def _coalesce(*values):
         if value is not None:
             return value
     return None
+
+
+def _parse_suffix_aliases(value: Any) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, (list, tuple, set)):
+        raw_items = [str(item or "") for item in value]
+    else:
+        raw_items = re.split(r"[\s,;]+", str(value or ""))
+
+    aliases: list[str] = []
+    seen: set[str] = set()
+    for item in raw_items:
+        normalized = str(item or "").strip().strip("_").lower()
+        if normalized and normalized not in seen:
+            aliases.append(normalized)
+            seen.add(normalized)
+    return tuple(aliases)

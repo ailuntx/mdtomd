@@ -30,6 +30,7 @@ class OptionsTests(TestCase):
                 retry_base_delay=None,
                 flat=None,
                 suffix="zh",
+                translated_suffix_aliases=None,
                 force=None,
             ),
             load_config(),
@@ -39,6 +40,7 @@ class OptionsTests(TestCase):
         self.assertEqual(options.auth_file, "/tmp/codex-home/auth.json")
         self.assertEqual(options.max_tokens, 64000)
         self.assertEqual(options.chunk_size, 64000)
+        self.assertEqual(options.translated_suffix_aliases, ())
 
     def test_resolve_translate_options_defaults_chunk_size_to_provider_max_tokens(self) -> None:
         options = resolve_translate_options(
@@ -64,6 +66,7 @@ class OptionsTests(TestCase):
                 retry_base_delay=None,
                 flat=None,
                 suffix="zh",
+                translated_suffix_aliases=None,
                 force=None,
             ),
             load_config(),
@@ -71,6 +74,7 @@ class OptionsTests(TestCase):
 
         self.assertEqual(options.max_tokens, 8192)
         self.assertEqual(options.chunk_size, 8192)
+        self.assertEqual(options.translated_suffix_aliases, ())
 
     def test_resolve_estimate_options_defaults_chunk_size_to_max_tokens(self) -> None:
         options = resolve_estimate_options(
@@ -85,6 +89,7 @@ class OptionsTests(TestCase):
                 max_tokens=32000,
                 flat=None,
                 suffix="zh",
+                translated_suffix_aliases=None,
                 force=None,
             ),
             load_config(),
@@ -92,3 +97,36 @@ class OptionsTests(TestCase):
 
         self.assertEqual(options.max_tokens, 32000)
         self.assertEqual(options.chunk_size, 32000)
+        self.assertEqual(options.translated_suffix_aliases, ())
+
+    def test_resolve_translate_options_parses_translated_suffix_aliases(self) -> None:
+        options = resolve_translate_options(
+            SimpleNamespace(
+                input="README.md",
+                language="Chinese",
+                output=None,
+                output_dir="",
+                provider="deepseek",
+                model="deepseek-chat",
+                base_url="",
+                api_key="",
+                api_key_env="",
+                codex_home="",
+                auth_file="",
+                api_mode="chat_completions",
+                chunk_size=None,
+                chunk_sleep_seconds=None,
+                timeout_sec=None,
+                max_tokens=None,
+                temperature=None,
+                max_retries=None,
+                retry_base_delay=None,
+                flat=None,
+                suffix="zh",
+                translated_suffix_aliases="cn, CN; chinese",
+                force=None,
+            ),
+            load_config(),
+        )
+
+        self.assertEqual(options.translated_suffix_aliases, ("cn", "chinese"))

@@ -123,6 +123,45 @@ class CliTests(TestCase):
             self.assertIn("跳过已翻译输入", buffer.getvalue())
             translate_file.assert_not_called()
 
+    def test_translate_single_file_skips_alias_translated_input(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / "sample_CN.md"
+            input_path.write_text("# 标题\n", encoding="utf-8")
+            empty_config = temp_path / "empty.yaml"
+            empty_config.write_text("", encoding="utf-8")
+
+            buffer = io.StringIO()
+            mocked_client = mock.Mock()
+            mocked_client.config.provider = "openai"
+            mocked_client.config.model = "gpt-4.1-mini"
+            with mock.patch.object(cli, "create_llm_client", return_value=mocked_client):
+                with mock.patch.object(cli.MarkdownTranslator, "translate_file") as translate_file:
+                    with redirect_stdout(buffer):
+                        exit_code = cli.main(
+                            [
+                                "translate",
+                                "--config",
+                                str(empty_config),
+                                "-i",
+                                str(input_path),
+                                "-l",
+                                "Chinese",
+                                "--provider",
+                                "openai",
+                                "-k",
+                                "test-key",
+                                "--suffix",
+                                "zh",
+                                "--translated-suffix-aliases",
+                                "cn,chinese",
+                            ]
+                        )
+
+            self.assertEqual(exit_code, 0)
+            self.assertIn("跳过已翻译输入", buffer.getvalue())
+            translate_file.assert_not_called()
+
     def test_translate_single_file_skips_up_to_date_output(self) -> None:
         with TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -163,6 +202,50 @@ class CliTests(TestCase):
             self.assertEqual(exit_code, 0)
             self.assertIn("跳过已是最新输出", buffer.getvalue())
             translate_file.assert_not_called()
+
+    def test_estimate_single_file_skips_alias_up_to_date_output(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / "sample.md"
+            input_path.write_text("# Title\n", encoding="utf-8")
+            output_path = temp_path / "sample_Chinese.md"
+            output_path.write_text("# 标题\n", encoding="utf-8")
+            input_stat = input_path.stat()
+            os.utime(output_path, (input_stat.st_atime + 10, input_stat.st_mtime + 10))
+            config_path = temp_path / "config.yaml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "llm:",
+                        "  provider: openai",
+                        "defaults:",
+                        "  language: Chinese",
+                        "  suffix: zh",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            buffer = io.StringIO()
+            with mock.patch.object(cli.MarkdownTranslator, "estimate_file_tokens") as estimate_file_tokens:
+                with redirect_stdout(buffer):
+                    exit_code = cli.main(
+                        [
+                            "estimate",
+                            "--config",
+                            str(config_path),
+                            "-i",
+                            str(input_path),
+                            "--translated-suffix-aliases",
+                            "cn,chinese",
+                        ]
+                    )
+
+            output = buffer.getvalue()
+            self.assertEqual(exit_code, 0)
+            self.assertIn("跳过已是最新输出", output)
+            self.assertIn("sample_Chinese.md", output)
+            estimate_file_tokens.assert_not_called()
 
     def test_translate_glob_defaults_output_dir_to_glob_base_dir(self) -> None:
         with TemporaryDirectory() as temp_dir:

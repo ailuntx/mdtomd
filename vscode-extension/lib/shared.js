@@ -269,6 +269,28 @@ function resolveTargetSuffix(rawConfig, rawSuffixMap, targetLanguage) {
   return normalizeSuffix(suffixMap[targetLanguage]) || normalizeSuffix(defaults.suffix) || normalizeLanguage(targetLanguage);
 }
 
+function resolveTranslatedSuffixAliases(rawValue, targetLanguage, targetSuffix) {
+  if (!isPlainObject(rawValue)) {
+    return [];
+  }
+  const rawAliases = rawValue[targetLanguage];
+  const values = Array.isArray(rawAliases)
+    ? rawAliases
+    : String(rawAliases || '').split(/[\n,;]+/u);
+  const normalizedTargetSuffix = normalizeSuffix(targetSuffix).toLowerCase();
+  const aliases = [];
+  const seen = new Set();
+  for (const item of values) {
+    const normalized = normalizeSuffix(item).toLowerCase();
+    if (!normalized || normalized === normalizedTargetSuffix || seen.has(normalized)) {
+      continue;
+    }
+    aliases.push(normalized);
+    seen.add(normalized);
+  }
+  return aliases;
+}
+
 function buildProviderDetail(override) {
   const parts = [];
   if (readString(override.base_url)) {
@@ -292,7 +314,7 @@ function buildProviderDetail(override) {
   return parts.join(' ');
 }
 
-function buildCliArgs(command, inputPath, profile, configPath, targetLanguage, targetSuffix, timeoutSec) {
+function buildCliArgs(command, inputPath, profile, configPath, targetLanguage, targetSuffix, translatedSuffixAliases, timeoutSec) {
   const args = [command, '--json', '-i', inputPath];
 
   if (configPath) {
@@ -301,6 +323,7 @@ function buildCliArgs(command, inputPath, profile, configPath, targetLanguage, t
 
   pushArg(args, '--language', targetLanguage);
   pushArg(args, '--suffix', targetSuffix);
+  pushArg(args, '--translated-suffix-aliases', Array.isArray(translatedSuffixAliases) ? translatedSuffixAliases.join(',') : '');
   if (command === 'translate' || command === 'run') {
     pushArg(args, '--timeout-sec', timeoutSec);
   }
@@ -633,6 +656,7 @@ module.exports = {
   isMarkdownPath,
   loadConfigFile,
   resolveCliInstallSpec,
+  resolveTranslatedSuffixAliases,
   resolveTargetLanguage,
   resolveTargetSuffix,
   summarizeTranslation,

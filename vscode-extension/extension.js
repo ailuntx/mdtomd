@@ -19,6 +19,7 @@ const {
   loadConfigFile,
   resolveTargetLanguage,
   resolveCliInstallSpec,
+  resolveTranslatedSuffixAliases,
   resolveTargetSuffix,
   summarizeTranslation,
 } = require('./lib/shared');
@@ -97,6 +98,12 @@ function activate(context) {
     const settings = vscode.workspace.getConfiguration('mdtomd');
     const targetLanguage = resolveTargetLanguage(config, settings.get('targetLanguage'));
     const targetSuffix = resolveTargetSuffix(config, settings.get('languageSuffixes'), targetLanguage);
+    const translatedSuffixAliases = resolveTranslatedSuffixAliases(
+      settings.get('translatedSuffixAliases'),
+      targetLanguage,
+      targetSuffix
+    );
+    const targetLabel = describeTarget(targetPath, workspaceFolder?.uri.fsPath);
 
     const cwd = configPath ? path.dirname(configPath) : workspaceFolder?.uri.fsPath || searchRoot;
     const estimateResult = await runCliJson({
@@ -107,6 +114,7 @@ function activate(context) {
       cwd,
       targetLanguage,
       targetSuffix,
+      translatedSuffixAliases,
       outputChannel,
     });
     if (!ensureCliSuccess('estimate', estimateResult, outputChannel)) {
@@ -117,7 +125,7 @@ function activate(context) {
     const pendingCount = estimate.summary?.pending_file_count ?? 0;
     const fileCount = estimate.summary?.file_count ?? 0;
     if (pendingCount <= 0) {
-      showStatus(`$(check) mdtomd 已完成 ${fileCount}/${fileCount}`, 5000);
+      showStatus(`$(check) mdtomd ${targetLabel} ${fileCount}/${fileCount}`, 5000);
       vscode.window.showInformationMessage('没有待翻译文件，当前目标会被全部跳过。');
       return;
     }
@@ -164,6 +172,7 @@ function activate(context) {
       cwd,
       targetLanguage,
       targetSuffix,
+      translatedSuffixAliases,
       outputChannel,
     });
     if (!ensureCliSuccess('estimate', selectedEstimateResult, outputChannel)) {
@@ -172,7 +181,7 @@ function activate(context) {
     const selectedEstimate = selectedEstimateResult.payload;
     const selectedPendingCount = selectedEstimate.summary?.pending_file_count ?? 0;
     if (selectedPendingCount <= 0) {
-      showStatus(`$(check) mdtomd 已完成 ${fileCount}/${fileCount}`, 5000);
+      showStatus(`$(check) mdtomd ${targetLabel} ${fileCount}/${fileCount}`, 5000);
       vscode.window.showInformationMessage('按当前模型和后缀配置，没有待翻译文件。');
       return;
     }
@@ -193,14 +202,14 @@ function activate(context) {
       return;
     }
 
-    showStatus(`$(sync~spin) mdtomd 翻译中 0/${selectedPendingCount}`);
+    showStatus(`$(sync~spin) mdtomd ${targetLabel} 0/${selectedPendingCount}`);
     const translateResult = await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
-        title: 'mdtomd 翻译中',
-        cancellable: false,
+        title: `mdtomd 翻译中: ${targetLabel}`,
+        cancellable: true,
       },
-      async () =>
+      async (_, cancellationToken) =>
         runCliJson({
           command: 'translate',
           targetPath,
@@ -209,17 +218,22 @@ function activate(context) {
           cwd,
           targetLanguage,
           targetSuffix,
+          translatedSuffixAliases,
           outputChannel,
+          cancellationToken,
         })
     );
 
-    const translate = translateResult.payload;
-    const summary = summarizeTranslation(translate);
-    showStatus(`$(check) mdtomd 已完成 ${summary.completed}/${summary.fileCount}`, 8000);
-
     if (!ensureCliSuccess('translate', translateResult, outputChannel)) {
+      if (translateResult.payload?.error?.stage === 'cancelled') {
+        showStatus(`$(circle-slash) mdtomd 已取消 ${targetLabel}`, 8000);
+      }
       return;
     }
+
+    const translate = translateResult.payload;
+    const summary = summarizeTranslation(translate);
+    showStatus(`$(check) mdtomd ${targetLabel} ${summary.completed}/${summary.fileCount}`, 8000);
 
     if (summary.failed > 0) {
       for (const item of translate.results || []) {
@@ -583,19 +597,65 @@ function activate(context) {
     return [base, profile.detail].filter(Boolean).join(' | ');
   }
 
-  async function runCliJson({ command, targetPath, profile, configPath, cwd, targetLanguage, targetSuffix, outputChannel }) {
+  function describeTarget(targetPath, workspaceRoot) {
+    if (workspaceRoot) {
+      const relativePath = path.relative(workspaceRoot, targetPath);
+      if (relativePath && !relativePath.startsWith('..')) {
+        return relativePath;
+      }
+    }
+    return path.basename(targetPath) || targetPath;
+  }
+
+  async function runCliJson({
+    command,
+    targetPath,
+    profile,
+    configPath,
+    cwd,
+    targetLanguage,
+    targetSuffix,
+    translatedSuffixAliases,
+    outputChannel,
+    cancellationToken,
+  }) {
     const settings = vscode.workspace.getConfiguration('mdtomd');
-    const args = buildCliArgs(command, targetPath, profile, configPath, targetLanguage, targetSuffix, settings.get('timeoutSec'));
+    const args = buildCliArgs(
+      command,
+      targetPath,
+      profile,
+      configPath,
+      targetLanguage,
+      targetSuffix,
+      translatedSuffixAliases,
+      settings.get('timeoutSec')
+    );
     const candidates = getCliCandidates(settings, cwd);
     let lastMissing = null;
 
     for (const candidate of candidates) {
       outputChannel.appendLine(`> ${formatCommand(candidate, args)}  (cwd=${cwd})`);
-      const result = await spawnProcess(candidate.command, [...candidate.baseArgs, ...args], cwd);
+      const result = await spawnProcess(candidate.command, [...candidate.baseArgs, ...args], cwd, { cancellationToken });
       if (result.error && result.error.code === 'ENOENT') {
         lastMissing = candidate.command;
         outputChannel.appendLine(`命令不存在: ${candidate.command}`);
         continue;
+      }
+
+      if (result.cancelled) {
+        return {
+          ...result,
+          payload: {
+            command,
+            ok: false,
+            error: {
+              stage: 'cancelled',
+              message: 'user cancelled translation',
+              display_message: '已取消当前翻译任务。',
+            },
+          },
+          invocation: formatCommand(candidate, args),
+        };
       }
 
       if (result.stderr.trim()) {
@@ -647,6 +707,10 @@ function activate(context) {
     if (result.stderr.trim()) {
       outputChannel.appendLine(result.stderr.trim());
     }
+    if (payload.error?.stage === 'cancelled') {
+      vscode.window.showInformationMessage(displayMessage);
+      return false;
+    }
     outputChannel.show(true);
     vscode.window.showErrorMessage(displayMessage);
     return false;
@@ -684,7 +748,7 @@ function parseCliJson(stdout, command, stderr) {
   }
 }
 
-function spawnProcess(command, args, cwd) {
+function spawnProcess(command, args, cwd, options = {}) {
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       cwd,
@@ -695,6 +759,27 @@ function spawnProcess(command, args, cwd) {
     let stdout = '';
     let stderr = '';
     let settled = false;
+    let cancellationListener = null;
+    let killTimer = null;
+
+    const cleanup = () => {
+      if (cancellationListener) {
+        cancellationListener.dispose();
+        cancellationListener = null;
+      }
+      if (killTimer) {
+        clearTimeout(killTimer);
+        killTimer = null;
+      }
+    };
+
+    const finish = (result) => {
+      if (!settled) {
+        settled = true;
+        cleanup();
+        resolve(result);
+      }
+    };
 
     child.stdout.on('data', (chunk) => {
       stdout += chunk.toString();
@@ -702,17 +787,32 @@ function spawnProcess(command, args, cwd) {
     child.stderr.on('data', (chunk) => {
       stderr += chunk.toString();
     });
+    if (options.cancellationToken) {
+      cancellationListener = options.cancellationToken.onCancellationRequested(() => {
+        if (settled) {
+          return;
+        }
+        try {
+          child.kill('SIGTERM');
+        } catch {}
+        killTimer = setTimeout(() => {
+          try {
+            child.kill('SIGKILL');
+          } catch {}
+        }, 1000);
+      });
+    }
     child.on('error', (error) => {
-      if (!settled) {
-        settled = true;
-        resolve({ code: 1, stdout, stderr, error });
-      }
+      finish({ code: 1, stdout, stderr, error, cancelled: false });
     });
     child.on('close', (code) => {
-      if (!settled) {
-        settled = true;
-        resolve({ code: code ?? 1, stdout, stderr, error: null });
-      }
+      finish({
+        code: code ?? 1,
+        stdout,
+        stderr,
+        error: null,
+        cancelled: Boolean(options.cancellationToken?.isCancellationRequested),
+      });
     });
   });
 }

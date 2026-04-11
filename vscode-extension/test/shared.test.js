@@ -16,6 +16,7 @@ const {
   loadConfigFile,
   resolveCliInstallSpec,
   resolveTargetLanguage,
+  resolveTranslatedSuffixAliases,
   resolveTargetSuffix,
 } = require('../lib/shared');
 
@@ -195,6 +196,7 @@ test('buildCliArgs keeps config and explicit profile flags', () => {
     '/tmp/config.yaml',
     'Chinese',
     'zh',
+    ['cn', 'chinese'],
     180
   );
 
@@ -209,6 +211,8 @@ test('buildCliArgs keeps config and explicit profile flags', () => {
     'Chinese',
     '--suffix',
     'zh',
+    '--translated-suffix-aliases',
+    'cn,chinese',
     '--timeout-sec',
     '180',
     '--provider',
@@ -245,6 +249,7 @@ test('buildCliArgs does not pass translate-only flags to estimate', () => {
     null,
     'Chinese',
     'zh',
+    ['cn', 'chinese'],
     90
   );
 
@@ -257,6 +262,8 @@ test('buildCliArgs does not pass translate-only flags to estimate', () => {
     'Chinese',
     '--suffix',
     'zh',
+    '--translated-suffix-aliases',
+    'cn,chinese',
     '--provider',
     'deepseek',
     '--model',
@@ -264,6 +271,19 @@ test('buildCliArgs does not pass translate-only flags to estimate', () => {
     '--max-tokens',
     '8192',
   ]);
+});
+
+test('resolveTranslatedSuffixAliases returns normalized aliases for target language', () => {
+  const aliases = resolveTranslatedSuffixAliases(
+    {
+      Chinese: 'cn, CN; chinese\n_zh',
+      Japanese: 'jp',
+    },
+    'Chinese',
+    'zh'
+  );
+
+  assert.deepEqual(aliases, ['cn', 'chinese']);
 });
 
 test('findNearestConfigPath walks upward to workspace root', () => {

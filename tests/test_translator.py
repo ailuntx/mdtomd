@@ -17,8 +17,13 @@ class MarkdownTranslatorTests(TestCase):
         self.translator = MarkdownTranslator(self.llm_client, chunk_sleep_seconds=0.0)
 
     def test_split_into_chunks_keeps_order(self) -> None:
+        class FakeTokenCounter:
+            def count_text(self, text: str) -> int:
+                return len(text)
+
         content = "alpha\nbeta\ngamma"
-        chunks = self.translator.split_into_chunks(content, max_chunk_size=3)
+        with mock.patch("mdtomd.translator.TokenCounter.for_model", return_value=FakeTokenCounter()):
+            chunks = self.translator.split_into_chunks(content, max_chunk_size=10)
         self.assertEqual(chunks, ["alpha\nbeta", "gamma"])
 
     def test_split_into_chunks_uses_tokens_instead_of_chars(self) -> None:
@@ -250,6 +255,39 @@ class MarkdownTranslatorTests(TestCase):
             self.assertEqual(results[0]["reason"], "up-to-date")
             translate_markdown.assert_not_called()
 
+    def test_translate_files_skips_alias_outputs_case_insensitive(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            docs_dir = temp_path / "docs"
+            docs_dir.mkdir()
+
+            input_path = docs_dir / "a.md"
+            input_path.write_text("# A\n", encoding="utf-8")
+            output_dir = temp_path / "out"
+            output_dir.mkdir()
+            output_path = output_dir / "a_CN.md"
+            output_path.write_text("# 甲\n", encoding="utf-8")
+
+            input_stat = input_path.stat()
+            os.utime(output_path, (input_stat.st_atime + 10, input_stat.st_mtime + 10))
+
+            with mock.patch.object(self.translator, "translate_markdown") as translate_markdown:
+                results = self.translator.translate_files(
+                    str(docs_dir / "*.md"),
+                    output_dir,
+                    "Chinese",
+                    options=TranslateFilesOptions(
+                        suffix="zh",
+                        translated_suffix_aliases=("cn", "chinese"),
+                    ),
+                )
+
+            self.assertEqual(len(results), 1)
+            self.assertTrue(results[0]["skipped"])
+            self.assertEqual(results[0]["reason"], "up-to-date")
+            self.assertEqual(Path(results[0]["outputPath"]).name, "a_CN.md")
+            translate_markdown.assert_not_called()
+
     def test_translate_files_uses_language_suffix_when_suffix_empty(self) -> None:
         with TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -317,6 +355,45 @@ class MarkdownTranslatorTests(TestCase):
             self.assertEqual(Path(results[0]["inputPath"]).name, "a.md")
             self.assertEqual(translate_markdown.call_count, 1)
 
+    def test_translate_files_skips_translated_inputs_with_aliases(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            docs_dir = temp_path / "docs"
+            docs_dir.mkdir()
+
+            (docs_dir / "a.md").write_text("# A\n", encoding="utf-8")
+            (docs_dir / "a_chinese.md").write_text("# 甲\n", encoding="utf-8")
+            (docs_dir / "b_CN.md").write_text("# 乙\n", encoding="utf-8")
+
+            mocked_translation = MarkdownTranslationResult(
+                content="译文\n",
+                chunk_count=1,
+                prompt_tokens=8,
+                completion_tokens=6,
+                total_tokens=14,
+            )
+            mocked_estimate = mock.Mock(
+                source_tokens=5,
+                request_input_tokens=9,
+                tokenizer="o200k_base",
+                approximate=False,
+            )
+            with mock.patch.object(self.translator, "estimate_markdown_tokens", return_value=mocked_estimate):
+                with mock.patch.object(self.translator, "translate_markdown_with_stats", return_value=mocked_translation) as translate_markdown:
+                    results = self.translator.translate_files(
+                        str(docs_dir / "*.md"),
+                        temp_path / "out",
+                        "Chinese",
+                        options=TranslateFilesOptions(
+                            suffix="zh",
+                            translated_suffix_aliases=("cn", "chinese"),
+                        ),
+                    )
+
+            self.assertEqual(len(results), 1)
+            self.assertEqual(Path(results[0]["inputPath"]).name, "a.md")
+            self.assertEqual(translate_markdown.call_count, 1)
+
     def test_estimate_files_tokens_skips_up_to_date_outputs(self) -> None:
         with TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -345,3 +422,35 @@ class MarkdownTranslatorTests(TestCase):
             self.assertEqual(estimate.pending_file_count, 0)
             self.assertEqual(estimate.skipped_file_count, 1)
             self.assertEqual(estimate.request_input_tokens, 0)
+
+    def test_estimate_files_tokens_skips_alias_outputs_case_insensitive(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            docs_dir = temp_path / "docs"
+            docs_dir.mkdir()
+
+            input_path = docs_dir / "a.md"
+            input_path.write_text("# A\n", encoding="utf-8")
+            output_dir = temp_path / "out"
+            output_dir.mkdir()
+            output_path = output_dir / "a_Chinese.md"
+            output_path.write_text("# 甲\n", encoding="utf-8")
+
+            input_stat = input_path.stat()
+            os.utime(output_path, (input_stat.st_atime + 10, input_stat.st_mtime + 10))
+
+            estimate = self.translator.estimate_files_tokens(
+                str(docs_dir / "*.md"),
+                output_dir,
+                "Chinese",
+                options=TranslateFilesOptions(
+                    suffix="zh",
+                    translated_suffix_aliases=("cn", "chinese"),
+                ),
+                model="gpt-4.1-mini",
+            )
+
+            self.assertEqual(estimate.file_count, 1)
+            self.assertEqual(estimate.pending_file_count, 0)
+            self.assertEqual(estimate.skipped_file_count, 1)
+            self.assertEqual(estimate.files[0].output_path, str(output_path))

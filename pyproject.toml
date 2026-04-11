@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mdtomd"
-version = "0.1.4"
+version = "0.1.5"
 description = "Markdown and MDX translation CLI with token estimation"
 readme = "README.md"
 requires-python = ">=3.9"
 authors = [
-    { name = "ailuntz", email = "ailuntz@icloud.com" },
+    { name = "ailuntx", email = "ailuntx@icloud.com" },
 ]
 maintainers = [
-    { name = "ailuntz", email = "ailuntz@icloud.com" },
+    { name = "ailuntx", email = "ailuntx@icloud.com" },
 ]
 keywords = ["markdown", "mdx", "translation", "llm"]
 classifiers = [

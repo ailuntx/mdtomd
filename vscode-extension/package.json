@@ -2,7 +2,7 @@
   "name": "mdtomd-vscode",
   "displayName": "mdtomd",
   "description": "在 VS Code 里右键翻译 Markdown，支持先估算价格再选择模型",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "publisher": "ailuntz",
   "icon": "media/icon.png",
   "license": "UNLICENSED",
@@ -169,6 +169,16 @@
               "type": "string"
             },
             "description": "语言到输出文件后缀的映射。优先级高于 config.yaml 的 defaults.suffix。"
+          },
+          "mdtomd.translatedSuffixAliases": {
+            "type": "object",
+            "default": {
+              "Chinese": "cn, chinese"
+            },
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "语言到已翻译后缀别名的映射，例如 Chinese -> cn, chinese。匹配时不区分大小写，只用于跳过已翻译文件。"
           },
           "mdtomd.showOutputChannelOnSuccess": {
             "type": "boolean",

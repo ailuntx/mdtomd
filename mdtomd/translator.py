@@ -8,7 +8,14 @@ from typing import Callable
 
 from .llm import LLMClient, LLMResponse
 from .markdown import PathLike, SUPPORTED_LANGUAGES, is_markdown_file, language_to_suffix
-from .paths import build_batch_output_path, collect_markdown_files, resolve_effective_suffix, resolve_glob_base_dir, should_skip_existing
+from .paths import (
+    build_batch_output_path,
+    collect_markdown_files,
+    resolve_effective_suffix,
+    resolve_existing_output_path,
+    resolve_glob_base_dir,
+    should_skip_existing,
+)
 from .token_count import TokenCounter
 
 
@@ -21,6 +28,7 @@ class TranslateFilesOptions:
     progress_callback: BatchProgressCallback | None = None
     preserve_structure: bool = True
     suffix: str = ""
+    translated_suffix_aliases: tuple[str, ...] = ()
     skip_existing: bool = True
     skip_translated_inputs: bool = True
 
@@ -307,6 +315,7 @@ class MarkdownTranslator:
             input_pattern=input_pattern,
             suffix=effective_suffix,
             skip_translated_inputs=translate_options.skip_translated_inputs,
+            translated_suffix_aliases=translate_options.translated_suffix_aliases,
         )
         base_dir = resolve_glob_base_dir(input_pattern)
         results: list[dict] = []
@@ -321,11 +330,20 @@ class MarkdownTranslator:
                 suffix=effective_suffix,
             )
 
-            if translate_options.skip_existing and should_skip_existing(input_file, output_path):
+            existing_output_path = resolve_existing_output_path(
+                input_file,
+                output_path,
+                translate_options.translated_suffix_aliases,
+            )
+            if translate_options.skip_existing and should_skip_existing(
+                input_file,
+                output_path,
+                translate_options.translated_suffix_aliases,
+            ):
                 results.append(
                     {
                         "inputPath": str(input_file),
-                        "outputPath": str(output_path),
+                        "outputPath": str(existing_output_path or output_path),
                         "success": True,
                         "skipped": True,
                         "reason": "up-to-date",
@@ -406,6 +424,7 @@ class MarkdownTranslator:
             input_pattern=input_pattern,
             suffix=effective_suffix,
             skip_translated_inputs=translate_options.skip_translated_inputs,
+            translated_suffix_aliases=translate_options.translated_suffix_aliases,
         )
         token_counter = TokenCounter.for_model(model)
         base_dir = resolve_glob_base_dir(input_pattern)
@@ -419,11 +438,20 @@ class MarkdownTranslator:
                 preserve_structure=translate_options.preserve_structure,
                 suffix=effective_suffix,
             )
-            if translate_options.skip_existing and should_skip_existing(input_file, output_path):
+            existing_output_path = resolve_existing_output_path(
+                input_file,
+                output_path,
+                translate_options.translated_suffix_aliases,
+            )
+            if translate_options.skip_existing and should_skip_existing(
+                input_file,
+                output_path,
+                translate_options.translated_suffix_aliases,
+            ):
                 estimates.append(
                     FileTokenEstimate(
                         input_path=str(input_file),
-                        output_path=str(output_path),
+                        output_path=str(existing_output_path or output_path),
                         skipped=True,
                         reason="up-to-date",
                     )
