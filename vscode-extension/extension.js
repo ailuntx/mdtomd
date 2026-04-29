@@ -412,6 +412,7 @@ function activate(context) {
 
   async function inspectCliStatus(settings, workspaceDir) {
     const candidates = getCliCandidates(settings, workspaceDir);
+    let fallbackStatus = null;
     for (const candidate of candidates) {
       const versionResult = await spawnProcess(candidate.command, [...candidate.baseArgs, '--version'], workspaceDir);
       if (versionResult.error && versionResult.error.code === 'ENOENT') {
@@ -430,12 +431,16 @@ function activate(context) {
         continue;
       }
       if (providersResult.code === 0) {
-        return {
+        fallbackStatus = {
           available: true,
           version: '',
           candidate,
         };
       }
+    }
+
+    if (fallbackStatus) {
+      return fallbackStatus;
     }
 
     return {
