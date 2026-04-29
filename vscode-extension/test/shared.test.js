@@ -9,6 +9,7 @@ const {
   buildDirectSettingsProfiles,
   buildEstimateMessage,
   buildManualProfile,
+  compareSemverVersions,
   buildSettingsProfiles,
   buildStartTranslateMessage,
   formatCliProgressMessage,
@@ -16,6 +17,7 @@ const {
   findNearestConfigPath,
   formatProfileRunLabel,
   loadConfigFile,
+  parseCliVersionText,
   parseProgressEventLine,
   resolveCliInstallSpec,
   resolveTargetLanguage,
@@ -425,8 +427,20 @@ test('loadConfigFile parses nested config.yaml', () => {
 });
 
 test('resolveCliInstallSpec uses PyPI package name', () => {
-  const spec = resolveCliInstallSpec('/tmp/anywhere');
-  assert.deepEqual(spec, { packageName: 'mdtomd' });
+  const spec = resolveCliInstallSpec('0.2.0');
+  assert.deepEqual(spec, { packageName: 'mdtomd', packageSpec: 'mdtomd==0.2.0' });
+});
+
+test('parseCliVersionText extracts version from CLI output', () => {
+  assert.equal(parseCliVersionText('mdtomd 0.2.0'), '0.2.0');
+  assert.equal(parseCliVersionText('0.2.1'), '0.2.1');
+  assert.equal(parseCliVersionText(''), '');
+});
+
+test('compareSemverVersions compares normal semantic versions', () => {
+  assert.equal(compareSemverVersions('0.2.0', '0.2.0'), 0);
+  assert.equal(compareSemverVersions('0.2.1', '0.2.0'), 1);
+  assert.equal(compareSemverVersions('0.1.9', '0.2.0'), -1);
 });
 
 test('resolveTargetLanguage prefers VS Code setting then config default', () => {

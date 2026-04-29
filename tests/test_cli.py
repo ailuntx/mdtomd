@@ -17,6 +17,15 @@ from mdtomd.translator import BatchTokenEstimate, FileTokenEstimate
 
 
 class CliTests(TestCase):
+    def test_version_flag(self) -> None:
+        buffer = io.StringIO()
+        with self.assertRaises(SystemExit) as context:
+            with redirect_stdout(buffer):
+                cli.main(["--version"])
+
+        self.assertEqual(context.exception.code, 0)
+        self.assertIn("mdtomd", buffer.getvalue())
+
     def test_languages_command(self) -> None:
         buffer = io.StringIO()
         with redirect_stdout(buffer):

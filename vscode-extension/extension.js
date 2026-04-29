@@ -3,6 +3,7 @@ const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 const vscode = require('vscode');
+const extensionPackage = require('./package.json');
 const {
   buildCliArgs,
   buildConfigProfiles,
@@ -11,6 +12,7 @@ const {
   buildManualProfile,
   buildSettingsProfiles,
   buildStartTranslateMessage,
+  compareSemverVersions,
   formatCliProgressMessage,
   formatProfileRunLabel,
   findPriceItem,
@@ -19,6 +21,7 @@ const {
   getCliCandidates,
   isMarkdownPath,
   loadConfigFile,
+  parseCliVersionText,
   parseProgressEventLine,
   resolveTargetLanguage,
   resolveCliInstallSpec,
@@ -26,6 +29,8 @@ const {
   resolveTargetSuffix,
   summarizeTranslation,
 } = require('./lib/shared');
+
+const REQUIRED_CLI_VERSION = String(extensionPackage.mdtomdCliVersion || '').trim();
 
 function activate(context) {
   const outputChannel = vscode.window.createOutputChannel('mdtomd');
@@ -44,7 +49,6 @@ function activate(context) {
       translateResource(vscode.window.activeTextEditor?.document.uri, { outputChannel, statusBar, clearStatusTimer: () => clearStatusTimer() })
     )
   );
-  void bootstrapCliOnce();
 
   function clearStatusTimer() {
     if (statusTimer) {
@@ -269,35 +273,44 @@ function activate(context) {
     vscode.window.showInformationMessage(`翻译完成: ${summary.completed}/${summary.fileCount}`);
   }
 
-  async function bootstrapCliOnce() {
-    const settings = vscode.workspace.getConfiguration('mdtomd');
-    const workspaceDir = resolveWorkspaceDir();
-    const cliAvailable = await hasWorkingCli(settings, workspaceDir);
-    if (!cliAvailable) {
-      await ensureCliReady(workspaceDir, { interactive: false });
-      return;
-    }
-    if (!shouldAutoUpdateCli(settings)) {
-      return;
-    }
-    if (!cliBootstrapPromise) {
-      cliBootstrapPromise = syncCliPackage(settings, workspaceDir, {
-        mode: 'update',
-        notifySuccess: false,
-        silentFailure: true,
-      }).finally(() => {
-        cliBootstrapPromise = null;
-      });
-    }
-    await cliBootstrapPromise;
-  }
-
   async function ensureCliReady(workspaceDir, { interactive }) {
     const settings = vscode.workspace.getConfiguration('mdtomd');
     const resolvedWorkspaceDir = workspaceDir || resolveWorkspaceDir();
-    const cliAvailable = await hasWorkingCli(settings, resolvedWorkspaceDir);
-    if (cliAvailable) {
-      return true;
+    const cliStatus = await inspectCliStatus(settings, resolvedWorkspaceDir);
+    if (cliStatus.available) {
+      if (!shouldManageCliVersion(settings) || isCliVersionCompatible(cliStatus.version, REQUIRED_CLI_VERSION)) {
+        return true;
+      }
+
+      const currentVersion = cliStatus.version || '未知版本';
+      const syncMessage = `检测到 mdtomd CLI 版本 ${currentVersion}，插件要求至少 ${REQUIRED_CLI_VERSION}，正在自动升级。`;
+      outputChannel.appendLine(syncMessage);
+      if (interactive) {
+        vscode.window.showInformationMessage(syncMessage);
+      }
+
+      if (!cliBootstrapPromise) {
+        const syncTask = async () => syncCliPackage(settings, resolvedWorkspaceDir, {
+          mode: 'sync',
+          notifySuccess: interactive,
+          silentFailure: !interactive,
+          requiredVersion: REQUIRED_CLI_VERSION,
+        });
+        cliBootstrapPromise = interactive
+          ? vscode.window.withProgress(
+              {
+                location: vscode.ProgressLocation.Notification,
+                title: `mdtomd 正在升级 CLI 到 ${REQUIRED_CLI_VERSION}`,
+                cancellable: false,
+              },
+              syncTask
+            )
+          : syncTask();
+        cliBootstrapPromise = cliBootstrapPromise.finally(() => {
+          cliBootstrapPromise = null;
+        });
+      }
+      return cliBootstrapPromise;
     }
 
     if (!interactive) {
@@ -305,6 +318,7 @@ function activate(context) {
         mode: 'install',
         notifySuccess: false,
         silentFailure: true,
+        requiredVersion: REQUIRED_CLI_VERSION,
       });
     }
 
@@ -312,13 +326,14 @@ function activate(context) {
       cliBootstrapPromise = vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: 'mdtomd 正在自动安装 CLI',
+          title: `mdtomd 正在安装 CLI ${REQUIRED_CLI_VERSION || ''}`.trim(),
           cancellable: false,
         },
         async () => syncCliPackage(settings, resolvedWorkspaceDir, {
           mode: 'install',
           notifySuccess: true,
           silentFailure: false,
+          requiredVersion: REQUIRED_CLI_VERSION,
         })
       ).finally(() => {
         cliBootstrapPromise = null;
@@ -327,16 +342,20 @@ function activate(context) {
     return cliBootstrapPromise;
   }
 
-  function shouldAutoUpdateCli(settings) {
-    return !String(settings.get('cliPath') || '').trim() && Boolean(settings.get('autoUpdateCliOnStartup'));
+  function shouldManageCliVersion(settings) {
+    return !String(settings.get('cliPath') || '').trim();
   }
 
-  async function syncCliPackage(settings, workspaceDir, { mode, notifySuccess, silentFailure }) {
-    outputChannel.appendLine(mode === 'update' ? '开始检查并更新 mdtomd CLI。' : '未检测到 mdtomd CLI，开始自动安装。');
+  async function syncCliPackage(settings, workspaceDir, { mode, notifySuccess, silentFailure, requiredVersion }) {
+    if (mode === 'install') {
+      outputChannel.appendLine(`未检测到 mdtomd CLI，开始自动安装${requiredVersion ? ` ${requiredVersion}` : ''}。`);
+    } else {
+      outputChannel.appendLine(`检测到 mdtomd CLI 版本过旧，开始同步到 ${requiredVersion || '最新兼容版本'}。`);
+    }
 
-    const installSpec = resolveCliInstallSpec();
+    const installSpec = resolveCliInstallSpec(requiredVersion);
     for (const candidate of getPythonInstallCandidates(settings)) {
-      const args = ['-m', 'pip', 'install', '--user', '-U', installSpec.packageName];
+      const args = ['-m', 'pip', 'install', '--user', '-U', installSpec.packageSpec];
       outputChannel.appendLine(`> ${formatCommand({ command: candidate.command, baseArgs: [] }, args)}  (cwd=${workspaceDir})`);
       const result = await spawnProcess(candidate.command, args, workspaceDir);
       appendProcessOutput(outputChannel, result);
@@ -347,20 +366,21 @@ function activate(context) {
       if (result.code === 0) {
         await tryLinkInstalledCli(candidate.command, workspaceDir, outputChannel);
       }
-      if (result.code === 0 && await hasWorkingCli(settings, workspaceDir)) {
+      if (result.code === 0 && await hasWorkingCli(settings, workspaceDir, requiredVersion)) {
         if (notifySuccess) {
-          const message = mode === 'update'
-            ? 'mdtomd CLI 已更新完成。'
-            : 'mdtomd CLI 已自动安装完成，现在可以直接翻译。';
+          const message = mode === 'install'
+            ? 'mdtomd CLI 已自动安装完成，现在可以直接翻译。'
+            : `mdtomd CLI 已同步到 ${requiredVersion}。`;
           vscode.window.showInformationMessage(message);
         }
         return true;
       }
     }
 
-    const failureMessage = mode === 'update'
-      ? '自动更新 mdtomd CLI 失败，可稍后重试或手动执行: python3 -m pip install --user -U mdtomd'
-      : '自动安装 mdtomd CLI 失败，请先安装 Python 3，或手动执行: python3 -m pip install --user -U mdtomd';
+    const packageSpec = installSpec.packageSpec;
+    const failureMessage = mode === 'install'
+      ? `自动安装 mdtomd CLI 失败，请先安装 Python 3，或手动执行: python3 -m pip install --user -U ${packageSpec}`
+      : `自动同步 mdtomd CLI 失败，可稍后重试或手动执行: python3 -m pip install --user -U ${packageSpec}`;
     return handleCliInstallFailure(failureMessage, { silentFailure });
   }
 
@@ -374,18 +394,55 @@ function activate(context) {
     return false;
   }
 
-  async function hasWorkingCli(settings, workspaceDir) {
+  async function hasWorkingCli(settings, workspaceDir, minimumVersion = '') {
+    const cliStatus = await inspectCliStatus(settings, workspaceDir);
+    return cliStatus.available && isCliVersionCompatible(cliStatus.version, minimumVersion);
+  }
+
+  function isCliVersionCompatible(currentVersion, minimumVersion) {
+    if (!minimumVersion) {
+      return true;
+    }
+    const normalizedCurrent = String(currentVersion || '').trim();
+    if (!normalizedCurrent) {
+      return false;
+    }
+    return compareSemverVersions(normalizedCurrent, minimumVersion) >= 0;
+  }
+
+  async function inspectCliStatus(settings, workspaceDir) {
     const candidates = getCliCandidates(settings, workspaceDir);
     for (const candidate of candidates) {
-      const result = await spawnProcess(candidate.command, [...candidate.baseArgs, 'providers'], workspaceDir);
-      if (result.error && result.error.code === 'ENOENT') {
+      const versionResult = await spawnProcess(candidate.command, [...candidate.baseArgs, '--version'], workspaceDir);
+      if (versionResult.error && versionResult.error.code === 'ENOENT') {
         continue;
       }
-      if (result.code === 0) {
-        return true;
+      if (versionResult.code === 0) {
+        return {
+          available: true,
+          version: parseCliVersionText(versionResult.stdout || versionResult.stderr),
+          candidate,
+        };
+      }
+
+      const providersResult = await spawnProcess(candidate.command, [...candidate.baseArgs, 'providers'], workspaceDir);
+      if (providersResult.error && providersResult.error.code === 'ENOENT') {
+        continue;
+      }
+      if (providersResult.code === 0) {
+        return {
+          available: true,
+          version: '',
+          candidate,
+        };
       }
     }
-    return false;
+
+    return {
+      available: false,
+      version: '',
+      candidate: null,
+    };
   }
 
   function appendProcessOutput(channel, result) {

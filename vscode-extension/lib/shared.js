@@ -99,9 +99,40 @@ function loadConfigFile(configPath) {
 }
 
 function resolveCliInstallSpec() {
+  const requiredVersion = readString(arguments[0]);
+  const packageName = 'mdtomd';
   return {
-    packageName: 'mdtomd',
+    packageName,
+    packageSpec: requiredVersion ? `${packageName}==${requiredVersion}` : packageName,
   };
+}
+
+function parseCliVersionText(text) {
+  const value = readString(text);
+  if (!value) {
+    return '';
+  }
+
+  const match = value.match(/(?:^|\s)(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\s*$/u);
+  return match ? match[1] : '';
+}
+
+function compareSemverVersions(left, right) {
+  const leftParts = parseSemverParts(left);
+  const rightParts = parseSemverParts(right);
+  if (!leftParts || !rightParts) {
+    return 0;
+  }
+
+  for (let index = 0; index < 3; index += 1) {
+    if (leftParts[index] > rightParts[index]) {
+      return 1;
+    }
+    if (leftParts[index] < rightParts[index]) {
+      return -1;
+    }
+  }
+  return 0;
 }
 
 function buildConfigProfiles(rawConfig, configPath) {
@@ -681,6 +712,14 @@ function normalizeLanguage(value) {
   return readString(value).toLowerCase().replace(/\s+/gu, '_');
 }
 
+function parseSemverParts(value) {
+  const match = readString(value).match(/^(\d+)\.(\d+)\.(\d+)/u);
+  if (!match) {
+    return null;
+  }
+  return match.slice(1).map((item) => Number(item));
+}
+
 function formatCost(value, currency) {
   return `${Number(value || 0).toFixed(6)} ${currency || ''}`.trim();
 }
@@ -698,6 +737,7 @@ module.exports = {
   buildDirectSettingsProfiles,
   buildEstimateMessage,
   buildManualProfile,
+  compareSemverVersions,
   formatCliProgressMessage,
   formatProfileRunLabel,
   buildSettingsProfiles,
@@ -709,6 +749,7 @@ module.exports = {
   isMarkdownPath,
   loadConfigFile,
   parseProgressEventLine,
+  parseCliVersionText,
   resolveCliInstallSpec,
   resolveTranslatedSuffixAliases,
   resolveTargetLanguage,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import importlib.metadata
 import json
 import sys
 from pathlib import Path
@@ -68,6 +69,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mdtomd",
         description="Translate markdown files with multiple LLM providers",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {_get_package_version()}",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -141,6 +147,19 @@ def _handle_run(args: argparse.Namespace) -> int:
 
     print("开始翻译:")
     return _handle_translate(args)
+
+
+def _get_package_version() -> str:
+    pyproject_path = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    if pyproject_path.exists():
+        for line in pyproject_path.read_text(encoding="utf-8").splitlines():
+            if line.startswith("version = "):
+                return line.split("=", 1)[1].strip().strip('"')
+
+    try:
+        return importlib.metadata.version("mdtomd")
+    except importlib.metadata.PackageNotFoundError:
+        return "0.0.0"
 
 
 def _handle_translate(args: argparse.Namespace) -> int:
