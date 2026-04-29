@@ -8,3 +8,4 @@ prune examples
 exclude config.yaml
 exclude env.example
 exclude llm-prices.md
+global-exclude .DS_Store
