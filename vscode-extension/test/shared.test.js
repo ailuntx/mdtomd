@@ -11,10 +11,12 @@ const {
   buildManualProfile,
   buildSettingsProfiles,
   buildStartTranslateMessage,
+  formatCliProgressMessage,
   findPriceItem,
   findNearestConfigPath,
   formatProfileRunLabel,
   loadConfigFile,
+  parseProgressEventLine,
   resolveCliInstallSpec,
   resolveTargetLanguage,
   resolveTranslatedSuffixAliases,
@@ -306,6 +308,30 @@ test('formatProfileRunLabel marks manual profile explicitly', () => {
   });
 
   assert.equal(label, '临时配置 DeepSeek / deepseek-chat');
+});
+
+test('parseProgressEventLine parses structured CLI progress line', () => {
+  const event = parseProgressEventLine('MDTOMD_PROGRESS {"type":"progress","file_index":2,"file_total":5,"chunk_index":3,"chunk_total":9,"file_path":"/tmp/a.md"}');
+
+  assert.equal(event.file_index, 2);
+  assert.equal(event.chunk_total, 9);
+  assert.equal(event.file_path, '/tmp/a.md');
+});
+
+test('formatCliProgressMessage builds readable progress text', () => {
+  const message = formatCliProgressMessage(
+    {
+      file_index: 2,
+      file_total: 5,
+      chunk_index: 3,
+      chunk_total: 9,
+      file_path: '/tmp/a.md',
+    },
+    7,
+    40
+  );
+
+  assert.equal(message, '7/40 chunks | 2/5 文件 | 3/9 分块 | a.md');
 });
 
 test('findNearestConfigPath walks upward to workspace root', () => {

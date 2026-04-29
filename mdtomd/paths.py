@@ -7,6 +7,9 @@ from pathlib import Path
 from .markdown import is_markdown_file, language_to_suffix
 
 
+EXCLUDED_DIR_NAMES = {"node_modules"}
+
+
 def contains_glob(value: str) -> bool:
     return any(char in value for char in "*?[")
 
@@ -147,6 +150,10 @@ def build_batch_output_path(
     return output_root / relative_path.parent / output_name
 
 
+def should_exclude_input(input_file: Path) -> bool:
+    return any(part in EXCLUDED_DIR_NAMES for part in input_file.parts)
+
+
 def collect_markdown_files(
     *,
     input_pattern: str,
@@ -158,7 +165,13 @@ def collect_markdown_files(
     if not files:
         raise FileNotFoundError(f"No files found matching pattern: {input_pattern}")
 
-    markdown_files = [Path(file_path) for file_path in files if Path(file_path).is_file() and is_markdown_file(file_path)]
+    markdown_files = [
+        Path(file_path)
+        for file_path in files
+        if Path(file_path).is_file()
+        and is_markdown_file(file_path)
+        and not should_exclude_input(Path(file_path))
+    ]
     if not markdown_files:
         raise ValueError("No markdown files found in the matched files")
 

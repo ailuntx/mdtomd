@@ -194,13 +194,13 @@ class MarkdownTranslator:
         completion_tokens = 0
         total_tokens = 0
         for index, chunk in enumerate(chunks, start=1):
-            if progress_callback:
-                progress_callback(index, total_chunks)
             translated_chunk, response = self._translate_chunk_with_response(chunk, target_language)
             translated_chunks.append(translated_chunk)
             prompt_tokens += max(0, int(response.prompt_tokens or 0))
             completion_tokens += max(0, int(response.completion_tokens or 0))
             total_tokens += max(0, int(response.total_tokens or 0))
+            if progress_callback:
+                progress_callback(index, total_chunks)
             if index < total_chunks and self.chunk_sleep_seconds > 0:
                 time.sleep(self.chunk_sleep_seconds)
 
@@ -298,6 +298,10 @@ class MarkdownTranslator:
             "approximate": token_estimate.approximate,
         }
 
+    @staticmethod
+    def is_empty_markdown_file(input_path: PathLike) -> bool:
+        return not Path(input_path).read_text(encoding="utf-8").strip()
+
     def translate_files(
         self,
         input_pattern: str,
@@ -347,6 +351,17 @@ class MarkdownTranslator:
                         "success": True,
                         "skipped": True,
                         "reason": "up-to-date",
+                    }
+                )
+                continue
+            if self.is_empty_markdown_file(input_file):
+                results.append(
+                    {
+                        "inputPath": str(input_file),
+                        "outputPath": str(output_path),
+                        "success": True,
+                        "skipped": True,
+                        "reason": "empty-input",
                     }
                 )
                 continue
@@ -457,10 +472,18 @@ class MarkdownTranslator:
                     )
                 )
                 continue
+            if self.is_empty_markdown_file(input_file):
+                estimates.append(
+                    FileTokenEstimate(
+                        input_path=str(input_file),
+                        output_path=str(output_path),
+                        skipped=True,
+                        reason="empty-input",
+                    )
+                )
+                continue
 
             content = input_file.read_text(encoding="utf-8")
-            if not content.strip():
-                raise ValueError(f"Input file is empty: {input_file}")
 
             markdown_estimate = self.estimate_markdown_tokens(
                 content,

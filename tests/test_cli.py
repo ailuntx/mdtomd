@@ -2,7 +2,7 @@ import io
 import json
 import os
 import sys
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -162,6 +162,41 @@ class CliTests(TestCase):
             self.assertIn("跳过已翻译输入", buffer.getvalue())
             translate_file.assert_not_called()
 
+    def test_translate_single_file_skips_empty_input(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / "sample.md"
+            input_path.write_text("", encoding="utf-8")
+            empty_config = temp_path / "empty.yaml"
+            empty_config.write_text("", encoding="utf-8")
+
+            buffer = io.StringIO()
+            mocked_client = mock.Mock()
+            mocked_client.config.provider = "openai"
+            mocked_client.config.model = "gpt-4.1-mini"
+            with mock.patch.object(cli, "create_llm_client", return_value=mocked_client):
+                with mock.patch.object(cli.MarkdownTranslator, "translate_file") as translate_file:
+                    with redirect_stdout(buffer):
+                        exit_code = cli.main(
+                            [
+                                "translate",
+                                "--config",
+                                str(empty_config),
+                                "-i",
+                                str(input_path),
+                                "-l",
+                                "Chinese",
+                                "--provider",
+                                "openai",
+                                "-k",
+                                "test-key",
+                            ]
+                        )
+
+            self.assertEqual(exit_code, 0)
+            self.assertIn("跳过空文件", buffer.getvalue())
+            translate_file.assert_not_called()
+
     def test_translate_single_file_skips_up_to_date_output(self) -> None:
         with TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -245,6 +280,42 @@ class CliTests(TestCase):
             self.assertEqual(exit_code, 0)
             self.assertIn("跳过已是最新输出", output)
             self.assertIn("sample_Chinese.md", output)
+            estimate_file_tokens.assert_not_called()
+
+    def test_estimate_single_file_skips_empty_input(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / "sample.md"
+            input_path.write_text("", encoding="utf-8")
+            config_path = temp_path / "config.yaml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "llm:",
+                        "  provider: openai",
+                        "defaults:",
+                        "  language: Chinese",
+                        "  suffix: zh",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            buffer = io.StringIO()
+            with mock.patch.object(cli.MarkdownTranslator, "estimate_file_tokens") as estimate_file_tokens:
+                with redirect_stdout(buffer):
+                    exit_code = cli.main(
+                        [
+                            "estimate",
+                            "--config",
+                            str(config_path),
+                            "-i",
+                            str(input_path),
+                        ]
+                    )
+
+            self.assertEqual(exit_code, 0)
+            self.assertIn("跳过空文件", buffer.getvalue())
             estimate_file_tokens.assert_not_called()
 
     def test_translate_glob_defaults_output_dir_to_glob_base_dir(self) -> None:
@@ -975,6 +1046,68 @@ class CliTests(TestCase):
             self.assertEqual(payload["summary"]["successful"], 1)
             self.assertEqual(payload["results"][0]["completion_tokens"], 10)
             self.assertEqual(payload["provider"], "openai")
+
+    def test_translate_single_file_json_emits_progress_events_to_stderr(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / "sample.md"
+            input_path.write_text("# Title\n", encoding="utf-8")
+            empty_config = temp_path / "empty.yaml"
+            empty_config.write_text("", encoding="utf-8")
+
+            mocked_client = mock.Mock()
+            mocked_client.config.provider = "openai"
+            mocked_client.config.model = "gpt-4.1-mini"
+
+            def fake_translate_file(input_file, output_file, target_language, progress_callback=None, chunk_size=None):
+                if progress_callback:
+                    progress_callback(1, 2)
+                    progress_callback(2, 2)
+                return {
+                    "inputPath": str(input_file),
+                    "outputPath": str(output_file),
+                    "targetLanguage": target_language,
+                    "chunkCount": 2,
+                    "sourceTokens": 12,
+                    "requestInputTokens": 20,
+                    "completionTokens": 10,
+                    "totalTokens": 30,
+                    "originalLength": 8,
+                    "translatedLength": 8,
+                }
+
+            stdout_buffer = io.StringIO()
+            stderr_buffer = io.StringIO()
+            with mock.patch.object(cli.MarkdownTranslator, "translate_file", side_effect=fake_translate_file):
+                with mock.patch.object(cli, "create_llm_client", return_value=mocked_client):
+                    with redirect_stdout(stdout_buffer), redirect_stderr(stderr_buffer):
+                        exit_code = cli.main(
+                            [
+                                "translate",
+                                "--json",
+                                "--config",
+                                str(empty_config),
+                                "-i",
+                                str(input_path),
+                                "-l",
+                                "Chinese",
+                                "--provider",
+                                "openai",
+                                "-k",
+                                "test-key",
+                            ]
+                        )
+
+            payload = json.loads(stdout_buffer.getvalue())
+            progress_lines = [line for line in stderr_buffer.getvalue().splitlines() if line.startswith(cli.PROGRESS_EVENT_PREFIX)]
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(payload["command"], "translate")
+            self.assertEqual(len(progress_lines), 2)
+            first_event = json.loads(progress_lines[0][len(cli.PROGRESS_EVENT_PREFIX):])
+            self.assertEqual(first_event["chunk_index"], 1)
+            self.assertEqual(first_event["chunk_total"], 2)
+            self.assertEqual(first_event["file_index"], 1)
+            self.assertEqual(first_event["file_total"], 1)
 
     def test_estimate_json_error_output_for_missing_input(self) -> None:
         buffer = io.StringIO()

@@ -320,6 +320,42 @@ class MarkdownTranslatorTests(TestCase):
 
             self.assertEqual(Path(results[0]["outputPath"]).name, "a_chinese.md")
 
+    def test_translate_files_skips_node_modules(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            docs_dir = temp_path / "docs"
+            node_modules_dir = docs_dir / "node_modules"
+            docs_dir.mkdir()
+            node_modules_dir.mkdir()
+
+            (docs_dir / "a.md").write_text("# A\n", encoding="utf-8")
+            (node_modules_dir / "b.md").write_text("# B\n", encoding="utf-8")
+
+            mocked_translation = MarkdownTranslationResult(
+                content="译文\n",
+                chunk_count=1,
+                prompt_tokens=8,
+                completion_tokens=6,
+                total_tokens=14,
+            )
+            mocked_estimate = mock.Mock(
+                source_tokens=5,
+                request_input_tokens=9,
+                tokenizer="o200k_base",
+                approximate=False,
+            )
+            with mock.patch.object(self.translator, "estimate_markdown_tokens", return_value=mocked_estimate):
+                with mock.patch.object(self.translator, "translate_markdown_with_stats", return_value=mocked_translation):
+                    results = self.translator.translate_files(
+                        str(docs_dir / "**/*"),
+                        temp_path / "out",
+                        "Chinese",
+                        options=TranslateFilesOptions(suffix="zh"),
+                    )
+
+            self.assertEqual(len(results), 1)
+            self.assertEqual(Path(results[0]["inputPath"]).name, "a.md")
+
     def test_translate_files_skips_translated_inputs(self) -> None:
         with TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -353,6 +389,43 @@ class MarkdownTranslatorTests(TestCase):
 
             self.assertEqual(len(results), 1)
             self.assertEqual(Path(results[0]["inputPath"]).name, "a.md")
+            self.assertEqual(translate_markdown.call_count, 1)
+
+    def test_translate_files_skips_empty_inputs(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            docs_dir = temp_path / "docs"
+            docs_dir.mkdir()
+
+            (docs_dir / "a.md").write_text("", encoding="utf-8")
+            (docs_dir / "b.md").write_text("# B\n", encoding="utf-8")
+
+            mocked_translation = MarkdownTranslationResult(
+                content="译文\n",
+                chunk_count=1,
+                prompt_tokens=8,
+                completion_tokens=6,
+                total_tokens=14,
+            )
+            mocked_estimate = mock.Mock(
+                source_tokens=5,
+                request_input_tokens=9,
+                tokenizer="o200k_base",
+                approximate=False,
+            )
+            with mock.patch.object(self.translator, "estimate_markdown_tokens", return_value=mocked_estimate):
+                with mock.patch.object(self.translator, "translate_markdown_with_stats", return_value=mocked_translation) as translate_markdown:
+                    results = self.translator.translate_files(
+                        str(docs_dir / "*.md"),
+                        temp_path / "out",
+                        "Chinese",
+                        options=TranslateFilesOptions(suffix="zh"),
+                    )
+
+            self.assertEqual(len(results), 2)
+            self.assertTrue(results[0]["skipped"])
+            self.assertEqual(results[0]["reason"], "empty-input")
+            self.assertEqual(Path(results[1]["inputPath"]).name, "b.md")
             self.assertEqual(translate_markdown.call_count, 1)
 
     def test_translate_files_skips_translated_inputs_with_aliases(self) -> None:
@@ -454,3 +527,26 @@ class MarkdownTranslatorTests(TestCase):
             self.assertEqual(estimate.pending_file_count, 0)
             self.assertEqual(estimate.skipped_file_count, 1)
             self.assertEqual(estimate.files[0].output_path, str(output_path))
+
+    def test_estimate_files_tokens_skips_empty_inputs(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            docs_dir = temp_path / "docs"
+            docs_dir.mkdir()
+
+            (docs_dir / "a.md").write_text("", encoding="utf-8")
+            (docs_dir / "b.md").write_text("# B\n", encoding="utf-8")
+
+            estimate = self.translator.estimate_files_tokens(
+                str(docs_dir / "*.md"),
+                temp_path / "out",
+                "Chinese",
+                options=TranslateFilesOptions(suffix="zh"),
+                model="gpt-4.1-mini",
+            )
+
+            self.assertEqual(estimate.file_count, 2)
+            self.assertEqual(estimate.pending_file_count, 1)
+            self.assertEqual(estimate.skipped_file_count, 1)
+            self.assertEqual(estimate.files[0].reason, "empty-input")
+            self.assertEqual(Path(estimate.files[1].input_path).name, "b.md")

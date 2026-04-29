@@ -18,6 +18,7 @@ const DIRECT_PROVIDER_DEFINITIONS = [
   { key: 'alibaba', provider: 'alibaba', label: 'Alibaba' },
   { key: 'openaiCompatible', provider: 'openai-compatible', label: 'OpenAI Compatible' },
 ];
+const CLI_PROGRESS_PREFIX = 'MDTOMD_PROGRESS ';
 const PROVIDER_LABELS = Object.fromEntries(
   DIRECT_PROVIDER_DEFINITIONS.map((item) => [item.provider, item.label])
 );
@@ -273,6 +274,39 @@ function formatProfileRunLabel(profile) {
     return `临时配置 ${baseLabel}`.trim();
   }
   return baseLabel;
+}
+
+function parseProgressEventLine(line) {
+  const text = readString(line);
+  if (!text.startsWith(CLI_PROGRESS_PREFIX)) {
+    return null;
+  }
+  try {
+    const payload = JSON.parse(text.slice(CLI_PROGRESS_PREFIX.length));
+    if (payload && payload.type === 'progress') {
+      return payload;
+    }
+  } catch {}
+  return null;
+}
+
+function formatCliProgressMessage(progressEvent, completedChunks, totalChunks) {
+  if (!progressEvent) {
+    return '';
+  }
+  const fileLabel = path.basename(readString(progressEvent.file_path)) || readString(progressEvent.file_path) || '-';
+  const fileIndex = Number(progressEvent.file_index || 0);
+  const fileTotal = Number(progressEvent.file_total || 0);
+  const chunkIndex = Number(progressEvent.chunk_index || 0);
+  const chunkTotal = Number(progressEvent.chunk_total || 0);
+  const completed = Number(completedChunks || 0);
+  const total = Number(totalChunks || 0);
+  return [
+    total > 0 ? `${completed}/${total} chunks` : '',
+    fileTotal > 0 ? `${fileIndex}/${fileTotal} 文件` : '',
+    chunkTotal > 0 ? `${chunkIndex}/${chunkTotal} 分块` : '',
+    fileLabel,
+  ].filter(Boolean).join(' | ');
 }
 
 function resolveTargetLanguage(rawConfig, fallbackLanguage) {
@@ -664,6 +698,7 @@ module.exports = {
   buildDirectSettingsProfiles,
   buildEstimateMessage,
   buildManualProfile,
+  formatCliProgressMessage,
   formatProfileRunLabel,
   buildSettingsProfiles,
   buildStartTranslateMessage,
@@ -673,6 +708,7 @@ module.exports = {
   getCliCandidates,
   isMarkdownPath,
   loadConfigFile,
+  parseProgressEventLine,
   resolveCliInstallSpec,
   resolveTranslatedSuffixAliases,
   resolveTargetLanguage,

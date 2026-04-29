@@ -11,6 +11,7 @@ const {
   buildManualProfile,
   buildSettingsProfiles,
   buildStartTranslateMessage,
+  formatCliProgressMessage,
   formatProfileRunLabel,
   findPriceItem,
   findNearestConfigPath,
@@ -18,6 +19,7 @@ const {
   getCliCandidates,
   isMarkdownPath,
   loadConfigFile,
+  parseProgressEventLine,
   resolveTargetLanguage,
   resolveCliInstallSpec,
   resolveTranslatedSuffixAliases,
@@ -204,14 +206,16 @@ function activate(context) {
     }
 
     const progressLabel = formatProfileRunLabel(profile);
-    showStatus(`$(sync~spin) mdtomd ${targetLabel} | ${progressLabel} 0/${selectedPendingCount}`);
+    const totalChunks = Number(selectedEstimate.summary?.chunk_count || 0);
+    let completedChunks = 0;
+    showStatus(`$(sync~spin) mdtomd ${targetLabel} | ${progressLabel} 0/${totalChunks || selectedPendingCount} chunks`);
     const translateResult = await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
         title: `mdtomd 翻译中: ${targetLabel} | ${progressLabel}`,
         cancellable: true,
       },
-      async (_, cancellationToken) =>
+      async (progress, cancellationToken) =>
         runCliJson({
           command: 'translate',
           targetPath,
@@ -223,6 +227,15 @@ function activate(context) {
           translatedSuffixAliases,
           outputChannel,
           cancellationToken,
+          onProgress(progressEvent) {
+            completedChunks += 1;
+            const progressMessage = formatCliProgressMessage(progressEvent, completedChunks, totalChunks);
+            progress.report({
+              increment: totalChunks > 0 ? 100 / totalChunks : 0,
+              message: `${progressLabel} | ${progressMessage}`,
+            });
+            showStatus(`$(sync~spin) mdtomd ${targetLabel} | ${progressLabel} | ${progressMessage}`);
+          },
         })
     );
 
@@ -620,6 +633,7 @@ function activate(context) {
     translatedSuffixAliases,
     outputChannel,
     cancellationToken,
+    onProgress,
   }) {
     const settings = vscode.workspace.getConfiguration('mdtomd');
     const args = buildCliArgs(
@@ -637,7 +651,7 @@ function activate(context) {
 
     for (const candidate of candidates) {
       outputChannel.appendLine(`> ${formatCommand(candidate, args)}  (cwd=${cwd})`);
-      const result = await spawnProcess(candidate.command, [...candidate.baseArgs, ...args], cwd, { cancellationToken });
+      const result = await spawnProcess(candidate.command, [...candidate.baseArgs, ...args], cwd, { cancellationToken, onProgress });
       if (result.error && result.error.code === 'ENOENT') {
         lastMissing = candidate.command;
         outputChannel.appendLine(`命令不存在: ${candidate.command}`);
@@ -760,6 +774,7 @@ function spawnProcess(command, args, cwd, options = {}) {
 
     let stdout = '';
     let stderr = '';
+    let stderrBuffer = '';
     let settled = false;
     let cancellationListener = null;
     let killTimer = null;
@@ -787,7 +802,19 @@ function spawnProcess(command, args, cwd, options = {}) {
       stdout += chunk.toString();
     });
     child.stderr.on('data', (chunk) => {
-      stderr += chunk.toString();
+      stderrBuffer += chunk.toString();
+      const lines = stderrBuffer.split(/\r?\n/u);
+      stderrBuffer = lines.pop() || '';
+      for (const line of lines) {
+        const progressEvent = parseProgressEventLine(line);
+        if (progressEvent) {
+          options.onProgress?.(progressEvent);
+          continue;
+        }
+        if (line) {
+          stderr += `${line}\n`;
+        }
+      }
     });
     if (options.cancellationToken) {
       cancellationListener = options.cancellationToken.onCancellationRequested(() => {
@@ -808,10 +835,18 @@ function spawnProcess(command, args, cwd, options = {}) {
       finish({ code: 1, stdout, stderr, error, cancelled: false });
     });
     child.on('close', (code) => {
+      if (stderrBuffer) {
+        const progressEvent = parseProgressEventLine(stderrBuffer);
+        if (progressEvent) {
+          options.onProgress?.(progressEvent);
+        } else {
+          stderr += stderrBuffer;
+        }
+      }
       finish({
         code: code ?? 1,
         stdout,
-        stderr,
+        stderr: stderr.trim(),
         error: null,
         cancelled: Boolean(options.cancellationToken?.isCancellationRequested),
       });

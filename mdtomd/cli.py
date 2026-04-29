@@ -27,6 +27,7 @@ from .translator import MarkdownTranslator, TranslateFilesOptions
 
 
 COMMANDS = {"translate", "estimate", "languages", "models", "providers", "setup", "run"}
+PROGRESS_EVENT_PREFIX = "MDTOMD_PROGRESS "
 OPTIONS_WITH_VALUE = {
     "-c",
     "--config",
@@ -186,18 +187,19 @@ def _execute_translate(args: argparse.Namespace) -> tuple[int, dict]:
         )
 
     translator = MarkdownTranslator(llm_client, chunk_sleep_seconds=options.chunk_sleep_seconds)
+    progress_callback_factory = _build_progress_callback_factory(
+        json_enabled=_json_enabled(args),
+        command="translate",
+    )
 
     try:
         if is_pattern:
-            def batch_progress(file_num: int, total_files: int, chunk: int, total_chunks: int, file_name: str) -> None:
-                print(f"[{file_num}/{total_files}] {Path(file_name).name} chunk {chunk}/{total_chunks}")
-
             results = translator.translate_files(
                 batch_input,
                 batch_output_dir,
                 options.language,
                 options=TranslateFilesOptions(
-                    progress_callback=None if _json_enabled(args) else batch_progress,
+                    progress_callback=progress_callback_factory,
                     preserve_structure=not options.flat,
                     suffix=options.suffix,
                     translated_suffix_aliases=options.translated_suffix_aliases,
@@ -238,6 +240,13 @@ def _execute_translate(args: argparse.Namespace) -> tuple[int, dict]:
             )
 
         effective_suffix = resolve_effective_suffix(options.suffix, options.language)
+        output_path = resolve_single_output_path(
+            input_path=input_path,
+            output=options.output,
+            output_dir=options.output_dir,
+            suffix=options.suffix,
+            language=options.language,
+        )
         if not options.force and is_translated_input(
             input_path,
             effective_suffix,
@@ -262,14 +271,26 @@ def _execute_translate(args: argparse.Namespace) -> tuple[int, dict]:
                 ],
             )
             return 0, payload
-
-        output_path = resolve_single_output_path(
-            input_path=input_path,
-            output=options.output,
-            output_dir=options.output_dir,
-            suffix=options.suffix,
-            language=options.language,
-        )
+        if translator.is_empty_markdown_file(input_path):
+            payload = _build_translate_payload(
+                config=config,
+                options=options,
+                provider=llm_client.config.provider,
+                model=llm_client.config.model,
+                mode="single",
+                input_value=str(input_path),
+                output_dir=options.output_dir,
+                results=[
+                    {
+                        "inputPath": str(input_path),
+                        "outputPath": str(output_path),
+                        "success": True,
+                        "skipped": True,
+                        "reason": "empty-input",
+                    }
+                ],
+            )
+            return 0, payload
         existing_output_path = resolve_existing_output_path(
             input_path,
             output_path,
@@ -305,7 +326,11 @@ def _execute_translate(args: argparse.Namespace) -> tuple[int, dict]:
             input_path,
             output_path,
             options.language,
-            progress_callback=None if _json_enabled(args) else (lambda chunk, total: print(f"chunk {chunk}/{total}")),
+            progress_callback=_build_single_file_progress_callback(
+                input_path=input_path,
+                json_enabled=_json_enabled(args),
+                command="translate",
+            ),
             chunk_size=options.chunk_size,
         )
         payload = _build_translate_payload(
@@ -418,6 +443,13 @@ def _execute_estimate(args: argparse.Namespace) -> tuple[int, dict]:
             )
 
         effective_suffix = resolve_effective_suffix(options.suffix, options.language)
+        output_path = resolve_single_output_path(
+            input_path=input_path,
+            output=options.output,
+            output_dir=options.output_dir,
+            suffix=options.suffix,
+            language=options.language,
+        )
         if not options.force and is_translated_input(
             input_path,
             effective_suffix,
@@ -452,14 +484,36 @@ def _execute_estimate(args: argparse.Namespace) -> tuple[int, dict]:
                 ],
             )
             return 0, payload
-
-        output_path = resolve_single_output_path(
-            input_path=input_path,
-            output=options.output,
-            output_dir=options.output_dir,
-            suffix=options.suffix,
-            language=options.language,
-        )
+        if translator.is_empty_markdown_file(input_path):
+            payload = _build_estimate_payload(
+                config=config,
+                options=options,
+                mode="single",
+                input_value=str(input_path),
+                output_dir=options.output_dir,
+                tokenizer="heuristic",
+                approximate=True,
+                file_count=1,
+                pending_file_count=0,
+                skipped_file_count=1,
+                chunk_count=0,
+                source_chars=0,
+                source_tokens=0,
+                request_input_tokens=0,
+                files=[
+                    {
+                        "input_path": str(input_path),
+                        "output_path": str(output_path),
+                        "chunk_count": 0,
+                        "source_chars": 0,
+                        "source_tokens": 0,
+                        "request_input_tokens": 0,
+                        "skipped": True,
+                        "reason": "empty-input",
+                    }
+                ],
+            )
+            return 0, payload
         existing_output_path = resolve_existing_output_path(
             input_path,
             output_path,
@@ -689,6 +743,65 @@ def _json_enabled(args: argparse.Namespace) -> bool:
 
 def _print_json(payload: dict) -> None:
     print(json.dumps(payload, ensure_ascii=False))
+
+
+def _emit_progress_event(
+    *,
+    command: str,
+    file_index: int,
+    file_total: int,
+    chunk_index: int,
+    chunk_total: int,
+    file_path: str,
+) -> None:
+    payload = {
+        "type": "progress",
+        "command": command,
+        "file_index": file_index,
+        "file_total": file_total,
+        "chunk_index": chunk_index,
+        "chunk_total": chunk_total,
+        "file_path": file_path,
+    }
+    sys.stderr.write(f"{PROGRESS_EVENT_PREFIX}{json.dumps(payload, ensure_ascii=False)}\n")
+    sys.stderr.flush()
+
+
+def _build_progress_callback_factory(*, json_enabled: bool, command: str):
+    if json_enabled:
+        def _progress(file_num: int, total_files: int, chunk: int, total_chunks: int, file_name: str) -> None:
+            _emit_progress_event(
+                command=command,
+                file_index=file_num,
+                file_total=total_files,
+                chunk_index=chunk,
+                chunk_total=total_chunks,
+                file_path=file_name,
+            )
+
+        return _progress
+
+    def _human_progress(file_num: int, total_files: int, chunk: int, total_chunks: int, file_name: str) -> None:
+        print(f"[{file_num}/{total_files}] {Path(file_name).name} chunk {chunk}/{total_chunks}")
+
+    return _human_progress
+
+
+def _build_single_file_progress_callback(*, input_path: Path, json_enabled: bool, command: str):
+    if json_enabled:
+        def _progress(chunk: int, total: int) -> None:
+            _emit_progress_event(
+                command=command,
+                file_index=1,
+                file_total=1,
+                chunk_index=chunk,
+                chunk_total=total,
+                file_path=str(input_path),
+            )
+
+        return _progress
+
+    return lambda chunk, total: print(f"chunk {chunk}/{total}")
 
 
 def _build_error_payload(
@@ -962,6 +1075,9 @@ def _print_translate_payload(payload: dict) -> None:
         if result.get("reason") == "up-to-date":
             print(f"跳过已是最新输出: {result['output_path']}")
             return
+        if result.get("reason") == "empty-input":
+            print(f"跳过空文件: {result['input_path']}")
+            return
 
     if payload.get("warning"):
         print(payload["warning"])
@@ -1011,6 +1127,9 @@ def _print_estimate_payload(payload: dict) -> None:
             return
         if item.get("reason") == "up-to-date":
             print(f"跳过已是最新输出: {item['output_path']}")
+            return
+        if item.get("reason") == "empty-input":
+            print(f"跳过空文件: {item['input_path']}")
             return
 
     if payload["mode"] == "batch":
