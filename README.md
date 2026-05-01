@@ -1,36 +1,28 @@
 # mdtomd
 
-用于 Markdown / MDX 文档翻译的命令行工具，支持翻译前 token 估算、批量处理和结构化 JSON 输出。
+Markdown / MDX 翻译工具，提供 CLI 和 VS Code 插件两种用法。
 
-默认会读取当前目录的 `config.yaml`，支持：
+支持：
 
-- 单文件翻译
-- 目录批量翻译
-- `.md` / `.markdown` / `.mdx`
-- 翻译前 token 估算
-- 翻译后显示输入 / 输出 token
+- 单文件、目录、glob 批量翻译
+- `estimate` 先看 token 和价格
+- `translate` 正式翻译
+- `--json` 结构化输出
+- 多厂商 LLM
 
 **安装**
-
-发布版安装：
 
 ```bash
 python3 -m pip install mdtomd
 ```
 
-本地开发安装：
-
-```bash
-python3 -m pip install -e .
-```
-
-如果想尽量自动把 `mdtomd` 放进当前机器的可执行路径：
+如果想尽量把 `mdtomd` 放进当前机器的可执行路径：
 
 ```bash
 ./scripts/install_cli.sh
 ```
 
-Windows:
+Windows：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\install_cli.ps1
@@ -38,119 +30,102 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install_cli.ps1
 
 **配置**
 
-直接改 `config.yaml` 即可。
+默认读取当前目录的 `config.yaml`。
 
-常见方式：
+常见配置点：
 
-1. 在 `providers.<provider>` 里写 `model/base_url/api_key/max_tokens`
-2. 在 `llm.provider` 里选默认 provider
-3. `translator.chunk_size` 留空时，会默认跟当前模型的 `max_tokens` 一致
-4. 临时覆盖时再用命令行参数或环境变量
+- `llm.provider` 选择默认 provider
+- `providers.<provider>` 配 `model/base_url/api_key/max_tokens`
+- `translator.chunk_size` 留空时，默认跟当前模型的 `max_tokens` 一致
 
-如果不想把 key 写进配置，可以用环境变量，例如：
+如果不想把 key 写进配置，可以用环境变量：
 
 ```bash
 export DEEPSEEK_API_KEY="your-key"
 ```
 
-**用法**
+**常用命令**
 
-快捷命令，先 estimate 再 translate：
+先估算再翻译：
 
 ```bash
 mdtomd examples/doc1.md
 mdtomd examples
 ```
 
-单文件翻译：
-
-```bash
-mdtomd translate -i examples/doc1.md
-```
-
-目录翻译：
-
-```bash
-mdtomd translate -i examples
-```
-
-目录输入会自动递归处理，并默认把结果写回原目录，生成 `*_zh.md` / `*_zh.mdx`。
-
-如果想输出到别的目录：
-
-```bash
-mdtomd translate -i examples --output-dir out
-```
-
-先看 token：
+只看估算：
 
 ```bash
 mdtomd estimate -i examples/doc1.md
 mdtomd estimate -i examples
 ```
 
-给插件或脚本用结构化输出：
+正式翻译：
+
+```bash
+mdtomd translate -i examples/doc1.md
+mdtomd translate -i examples
+```
+
+输出到别的目录：
+
+```bash
+mdtomd translate -i examples --output-dir out
+```
+
+结构化输出：
 
 ```bash
 mdtomd estimate -i examples/doc1.md --json
 mdtomd translate -i examples/doc1.md --json
 ```
 
-查看 provider 和模型：
+查看能力：
 
 ```bash
 mdtomd providers
 mdtomd models
+mdtomd --version
 ```
 
-**输出说明**
+**行为说明**
 
-单文件翻译完成后会额外打印：
-
-- `原文 tokens`
-- `请求输入 tokens`
-- `回复输出 tokens`
-
-其中：
-
-- `请求输入 tokens` 是按当前 prompt 和分块策略统计的输入 token
-- `回复输出 tokens` 是模型接口实际返回的 completion token
-
-**测试**
-
-```bash
-python3 -m unittest discover -s tests -v
-```
-
-**CLI 发布**
-
-构建并检查产物：
-
-```bash
-./scripts/build_cli.sh
-```
-
-上传到 PyPI：
-
-```bash
-export TWINE_PASSWORD="pypi-***"
-./scripts/publish_cli.sh
-```
+- 目录输入会递归处理 `.md` / `.markdown` / `.mdx`
+- 默认回写源目录，生成 `*_zh.md` 这类文件
+- 会自动跳过 `node_modules`
+- 会跳过空 Markdown
+- 单文件输出里会显示 `原文 tokens`、`请求输入 tokens`、`回复输出 tokens`
 
 **VS Code 插件**
 
 插件目录在 `vscode-extension/`。
 
-当前插件已支持：
+当前插件支持：
 
-- 文件树右键翻译 Markdown 文件
-- 文件树右键翻译文件夹
-- 实际使用翻译命令时自动检测 CLI，缺失时会从 PyPI 自动安装 `mdtomd`
-- 使用前按需检查 CLI 版本，不匹配时自动同步到插件要求的兼容版本；已固定 `mdtomd.cliPath` 时不会自动改动你的 CLI
-- 先调用 `estimate --json` 弹确认框
-- 从 `config.yaml` 已配模型里选择
-- 直接在 VS Code 设置面板里按“通用 + 厂商分组”填写模型参数，不需要手改 `settings.json`
-- 支持 DeepSeek、MiniMax、OpenAI、OpenAI Codex、OpenRouter、Anthropic、Gemini、Z.ai、Kimi、Alibaba、OpenAI Compatible
-- 翻译中实时显示文件 / chunk 进度，并支持取消
-- 可为每种语言配置已翻译文件后缀别名，例如 Chinese 对应 `cn`、`chinese`
-- 状态栏显示完成结果
+- 右键翻译 Markdown 文件或文件夹
+- 先估算，再选模型
+- 实际使用时按需安装 / 同步 CLI
+- 只显示已配置可用 key 的模型
+- 实时进度和取消
+- 语言后缀与已翻译别名设置
+
+**开发**
+
+测试：
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+构建 CLI：
+
+```bash
+./scripts/build_cli.sh
+```
+
+发布 CLI：
+
+```bash
+export TWINE_PASSWORD="pypi-***"
+./scripts/publish_cli.sh
+```

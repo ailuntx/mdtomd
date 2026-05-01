@@ -2,123 +2,82 @@
 
 在 VS Code 里直接翻译 Markdown。
 
-安装后，你可以右键 `.md`、`.markdown`、`.mdx` 文件或文件夹，先看待翻译文件数量、token 和价格估算，再选择模型开始翻译。
+右键 `.md`、`.markdown`、`.mdx` 文件或文件夹，先看估算，再选模型，再开始翻译。
 
 ![操作演示](https://raw.githubusercontent.com/ailuntx/mdtomd/main/vscode-extension/media/readme-demo.gif)
 
-## 为什么适合在 VS Code 里用
-
-- 不用切到命令行
-- 先看价格估算，再决定用哪个模型
-- 文件和文件夹都能直接右键翻译
-- 已有 `config.yaml` 的项目可以直接复用
-
 ## 适合什么场景
 
-- 想在 VS Code 里直接翻译单个 Markdown 文件
-- 想批量翻译一个文档目录
-- 想先比较不同模型价格，再决定用哪一个
-- 已经在项目里用 `config.yaml`，希望在编辑器里直接调用
+- 在编辑器里直接翻译单个 Markdown
+- 批量翻译文档目录
+- 先比较不同模型价格，再决定用哪一个
+- 复用项目里的 `config.yaml`
 
 ## 第一次使用
 
 1. 安装扩展
 2. 打开 VS Code 设置，搜索 `mdtomd`
-3. 在你要使用的厂商分组里填写 `model` 和 `apiKey`
+3. 在目标厂商分组里填写 `model`
+4. 再填写 `apiKey` 或 `apiKeyEnv`
 
-也可以不直接填写 `apiKey`，改为填写 `apiKeyEnv`，然后在系统环境变量里准备好对应的 key。
-
-如果当前项目里已经有 `config.yaml`，扩展也会读取里面的 `providers` 配置。
-语言和输出后缀以 VS Code 插件设置为准，会覆盖 `config.yaml` 里的 `defaults.language` 和 `defaults.suffix`。
+如果项目里已经有 `config.yaml`，扩展也会读取里面的 `providers`。
+目标语言和输出后缀以 VS Code 设置为准，会覆盖 `config.yaml` 里的默认值。
 
 ## 使用方式
 
-1. 在资源管理器里右键 Markdown 文件或文件夹
+1. 右键 Markdown 文件或文件夹
 2. 选择 `mdtomd: 翻译 Markdown`
-3. 先查看本次翻译的文件数、token 和价格参考
-4. 点“继续”后，从已配置可用 key 的模型里选择一个
+3. 查看文件数、token 和价格参考
+4. 点“继续”后选择模型
 5. 点“开始翻译”
 
 ## 你会看到什么
 
-- 翻译前估算：文件数、分块数、token、推荐模型价格参考
-- 模型选择：只显示已经配置好可用 key 的模型
-- 翻译结果：状态栏显示完成情况，失败时可在输出面板查看详情
+- 估算信息：文件数、分块数、token、价格参考
+- 模型列表：只显示已经配置好可用 key 的模型
+- 实时进度：provider / model、总 chunk、当前文件、当前分块
+- 取消按钮：中途可直接终止当前翻译
 
-## 配置说明
+## CLI 自动安装 / 同步
 
-扩展设置页已经按厂商分组，普通使用只需要关心这些字段：
+扩展不会在 VS Code 启动时自动打扰你。
 
-- `model`
-- `apiKey` 或 `apiKeyEnv`
-- `targetLanguage`
-- `languageSuffixes`
-- `baseUrl`
-- `maxTokens`
+真正执行翻译命令时才会检查 CLI：
 
-如果没有单独设置 `chunk_size`，CLI 会默认使用当前模型的 `max_tokens` 作为分块大小。
+- 没安装就自动安装
+- 版本不匹配就自动同步到兼容版本
+- 如果你固定了 `mdtomd.cliPath`，扩展不会擅自改动那个 CLI
 
-当前支持这些厂商分组：
-
-- DeepSeek
-- MiniMax
-- OpenAI
-- OpenAI Codex
-- OpenRouter
-- Anthropic
-- Gemini
-- Z.ai
-- Kimi
-- Alibaba
-- OpenAI Compatible
-
-## 自动安装 CLI
-
-扩展不会在 VS Code 启动时打扰你。
-
-当你第一次真正执行翻译命令时，扩展才会检查本机是否已有可用的 `mdtomd` CLI：
-
-- 如果没有安装，会自动安装
-- 如果版本低于插件要求，会自动同步到兼容版本
-- 如果你已经固定了 `mdtomd.cliPath`，扩展不会擅自改动那个 CLI
-
-自动安装 / 同步时会执行：
+自动安装 / 同步本质上执行的是：
 
 ```bash
 python -m pip install --user -U mdtomd
 ```
 
-或安装指定版本：
+## 常用设置
 
-```bash
-python -m pip install --user -U mdtomd==0.2.0
-```
+普通使用主要关心这些项：
 
-安装完成后会继续执行翻译。
+- `targetLanguage`
+- `languageSuffixes`
+- `translatedSuffixAliases`
+- 各厂商分组里的 `model`
+- 各厂商分组里的 `apiKey` 或 `apiKeyEnv`
+- `baseUrl`
+- `maxTokens`
 
-## 翻译过程
-
-翻译开始后，你会看到：
-
-- 通知栏里的实时进度
-- 当前 provider / model
-- 总 chunk 进度
-- 当前文件序号
-- 当前文件的 chunk 进度
-- 取消按钮
-
-如果中途取消，当前 CLI 进程会被直接终止。
+如果没有单独设置 `chunk_size`，CLI 会默认使用当前模型的 `max_tokens` 作为分块大小。
 
 ## 常见问题
 
 ### 为什么“继续”后看不到模型列表？
 
-因为还没有配置可用模型。请先在 VS Code 设置里填写：
+因为还没有配置可用模型。先在设置里填写：
 
 - `model`
 - `apiKey`
 
-或者填写：
+或者：
 
 - `model`
 - `apiKeyEnv`
@@ -131,13 +90,13 @@ python -m pip install --user -U mdtomd==0.2.0
 
 ### 默认目标语言是什么？
 
-默认是 `Chinese`，可以在设置里的 `mdtomd.targetLanguage` 下拉框里修改。
+默认是 `Chinese`，可以在 `mdtomd.targetLanguage` 下拉框里修改。
 
 ### 为什么有些已经翻译过的文件还是被算进去了？
 
-可以在设置里的 `mdtomd.translatedSuffixAliases` 里给目标语言补充已翻译后缀别名。
+可以在 `mdtomd.translatedSuffixAliases` 里补充已翻译后缀别名。
 
-例如 `Chinese` 默认可以配置成：
+例如：
 
 ```json
 {
@@ -145,4 +104,4 @@ python -m pip install --user -U mdtomd==0.2.0
 }
 ```
 
-这样像 `_cn`、`_CN`、`_chinese` 这类文件都会被当成已翻译结果跳过。
+这样 `_cn`、`_CN`、`_chinese` 这类文件会被当成已翻译结果跳过。
