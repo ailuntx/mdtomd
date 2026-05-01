@@ -145,10 +145,12 @@ export TWINE_PASSWORD="pypi-***"
 
 - 文件树右键翻译 Markdown 文件
 - 文件树右键翻译文件夹
-- 首次安装后自动检测 CLI，缺失时会从 PyPI 自动安装 `mdtomd`
-- 启动时可自动检查并升级 CLI，但已固定 `mdtomd.cliPath` 时不会自动升级
+- 实际使用翻译命令时自动检测 CLI，缺失时会从 PyPI 自动安装 `mdtomd`
+- 使用前按需检查 CLI 版本，不匹配时自动同步到插件要求的兼容版本；已固定 `mdtomd.cliPath` 时不会自动改动你的 CLI
 - 先调用 `estimate --json` 弹确认框
 - 从 `config.yaml` 已配模型里选择
 - 直接在 VS Code 设置面板里按“通用 + 厂商分组”填写模型参数，不需要手改 `settings.json`
 - 支持 DeepSeek、MiniMax、OpenAI、OpenAI Codex、OpenRouter、Anthropic、Gemini、Z.ai、Kimi、Alibaba、OpenAI Compatible
+- 翻译中实时显示文件 / chunk 进度，并支持取消
+- 可为每种语言配置已翻译文件后缀别名，例如 Chinese 对应 `cn`、`chinese`
 - 状态栏显示完成结果

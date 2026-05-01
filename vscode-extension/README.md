@@ -74,15 +74,40 @@
 
 ## 自动安装 CLI
 
-扩展会自动检查本机是否已安装 `mdtomd` CLI。
+扩展不会在 VS Code 启动时打扰你。
 
-如果没有安装，会自动执行：
+当你第一次真正执行翻译命令时，扩展才会检查本机是否已有可用的 `mdtomd` CLI：
+
+- 如果没有安装，会自动安装
+- 如果版本低于插件要求，会自动同步到兼容版本
+- 如果你已经固定了 `mdtomd.cliPath`，扩展不会擅自改动那个 CLI
+
+自动安装 / 同步时会执行：
 
 ```bash
 python -m pip install --user -U mdtomd
 ```
 
+或安装指定版本：
+
+```bash
+python -m pip install --user -U mdtomd==0.2.0
+```
+
 安装完成后会继续执行翻译。
+
+## 翻译过程
+
+翻译开始后，你会看到：
+
+- 通知栏里的实时进度
+- 当前 provider / model
+- 总 chunk 进度
+- 当前文件序号
+- 当前文件的 chunk 进度
+- 取消按钮
+
+如果中途取消，当前 CLI 进程会被直接终止。
 
 ## 常见问题
 
@@ -107,3 +132,17 @@ python -m pip install --user -U mdtomd
 ### 默认目标语言是什么？
 
 默认是 `Chinese`，可以在设置里的 `mdtomd.targetLanguage` 下拉框里修改。
+
+### 为什么有些已经翻译过的文件还是被算进去了？
+
+可以在设置里的 `mdtomd.translatedSuffixAliases` 里给目标语言补充已翻译后缀别名。
+
+例如 `Chinese` 默认可以配置成：
+
+```json
+{
+  "Chinese": "cn, chinese"
+}
+```
+
+这样像 `_cn`、`_CN`、`_chinese` 这类文件都会被当成已翻译结果跳过。
