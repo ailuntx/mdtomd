@@ -100,6 +100,8 @@ mdtomd --version
 
 插件目录在 `vscode-extension/`。
 
+![VS Code 插件演示](https://raw.githubusercontent.com/ailuntx/mdtomd/main/vscode-extension/media/readme-demo.gif)
+
 当前插件支持：
 
 - 右键翻译 Markdown 文件或文件夹
