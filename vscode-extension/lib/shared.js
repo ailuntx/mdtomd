@@ -557,9 +557,19 @@ function getLocalCliCandidates(workspaceDir) {
 
   if (process.platform === 'darwin') {
     const homeDir = os.homedir();
+    for (const candidate of [
+      path.join(homeDir, '.local', 'bin', 'mdtomd'),
+      '/opt/homebrew/bin/mdtomd',
+      '/usr/local/bin/mdtomd',
+    ]) {
+      if (fs.existsSync(candidate)) {
+        candidates.push(candidate);
+      }
+    }
+
     const libraryPython = path.join(homeDir, 'Library', 'Python');
     if (fs.existsSync(libraryPython)) {
-      for (const version of safeReadDir(libraryPython)) {
+      for (const version of safeReadDir(libraryPython).sort((left, right) => right.localeCompare(left, undefined, { numeric: true }))) {
         const candidate = path.join(libraryPython, version, 'bin', 'mdtomd');
         if (fs.existsSync(candidate)) {
           candidates.push(candidate);
